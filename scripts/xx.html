@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+</head>
+
+<body>
+    <h2>demo glsl heatmap</h2>
+    <div id="heatmaptarget"></div>
+
+    <script type="module">
+        import { heatmap } from './heatmap.js';
+        const hm = new heatmap("heatmaptarget");
+
+        let data = [];
+        let dim = 1000
+        for (let i=0;i<dim;i++){
+            let row = [];
+            for (let j=0;j<dim;j++){
+                row.push(1/dim/dim*(i*dim+j))
+            }
+            data.push(row);
+        }
+        console.log()
+        hm.draw(data)
+
+      </script>
+</body>
