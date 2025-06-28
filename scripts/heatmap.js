@@ -332,12 +332,12 @@ export class heatmap {
 
     pixel2binX(x){
         const xBin = Math.floor((x - this.leftgutter) / ((this.glslcanvas.width - this.leftgutter - this.rightgutter) / this.nXbins));
-        return xBin;
+        return xBin + this.xStart;
     }
 
     pixel2binY(y){
         const yBin = Math.floor((this.glslcanvas.height - this.bottomgutter - y) / ((this.glslcanvas.height - this.topgutter - this.bottomgutter) / this.nYbins));
-        return yBin;
+        return yBin + this.yStart;
     }
 
     pixel2bin(x, y) {
@@ -345,11 +345,11 @@ export class heatmap {
     }
 
     bin2pixelX(xBin) {
-        return this.leftgutter + (xBin + 0.5) * ((this.glslcanvas.width - this.leftgutter - this.rightgutter) / this.nXbins);
+        return this.leftgutter + (xBin-this.xStart + 0.5) * ((this.glslcanvas.width - this.leftgutter - this.rightgutter) / this.nXbins);
     }
 
     bin2pixelY(yBin) {
-        return this.glslcanvas.height - this.bottomgutter - (yBin + 0.5) * ((this.glslcanvas.height - this.topgutter - this.bottomgutter) / this.nYbins);
+        return this.glslcanvas.height - this.bottomgutter - (yBin-this.yStart + 0.5) * ((this.glslcanvas.height - this.topgutter - this.bottomgutter) / this.nYbins);
     }
 
     bin2pixel(x,y){
