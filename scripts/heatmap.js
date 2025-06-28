@@ -7,11 +7,13 @@ export class heatmap {
             throw new Error(`No element found with ID "${divId}"`);
         }
     
+        this.colorbarWidth = 70
+
         // glsl target canvas 
         this.glslcanvas = document.createElement('canvas');
         this.glslcanvas.style.position = 'absolute';
         this.glslcanvas.style.zIndex = 0;
-        this.glslcanvas.width = options.width || 512;
+        this.glslcanvas.width = options.width || 512+this.colorbarWidth;
         this.glslcanvas.height = options.height || 512;
         target.appendChild(this.glslcanvas);
 
@@ -61,12 +63,15 @@ export class heatmap {
         // markup gutters
         this.leftgutter = this.glslcanvas.width * 0.1;
         this.topgutter = this.glslcanvas.height * 0.02;
-        this.rightgutter = this.glslcanvas.width * 0.02;
+        this.rightgutter = this.glslcanvas.width * 0.02 + this.colorbarWidth;
         this.bottomgutter = this.glslcanvas.height * 0.1;
 
         // annotation members
         this.polyVertices_px = [];
         this.onVertexListUpdated = options.polycallback || null;
+
+        // colorscale lookup tables
+        this.viridisLUT = this.createColorscaleLUT(this.viridis, 256);
 
         // glsl guts
         this.gl = this.glslcanvas.getContext('webgl2');
@@ -86,6 +91,9 @@ export class heatmap {
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer);
         this.gl.vertexAttribPointer(a_vertex, 2, this.gl.FLOAT, false, 0, 0);
 
+        this.xAxisTitle = options.xAxisTitle || '';
+        this.yAxisTitle = options.yAxisTitle || '';
+
         this.init();
     }
     
@@ -97,17 +105,14 @@ export class heatmap {
         this.polyVertices_px = [];
         this.vertexcontrol.innerHTML = '';
         this.data = zvalues;
-        this.nXbins = zvalues[0].length;
-        this.nYbins = zvalues.length;
-        this.xStart = 0
-        this.yStart = 0
-        if (this.dragStart && this.dragEnd) {
-            this.nXbins = this.dragEnd[0] - this.dragStart[0];
-            this.nYbins = this.dragEnd[1] - this.dragStart[1];
-            this.xStart = this.dragStart[0];
-            this.yStart = this.dragStart[1];
+        if(!this.dragStart || !this.dragEnd) {
+            this.nXbins = zvalues[0].length;
+            this.nYbins = zvalues.length;
+            this.xStart = 0
+            this.yStart = 0
         }
 
+        this.setColorscaleLimits();
         const cellSize = [(this.glslcanvas.width-this.leftgutter-this.rightgutter)/this.nXbins, (this.glslcanvas.height-this.bottomgutter-this.topgutter)/this.nYbins];
         const resolution = [this.glslcanvas.width, this.glslcanvas.height];
         const instances = this.nXbins * this.nYbins;
@@ -126,12 +131,12 @@ export class heatmap {
                 }
                 const x = this.leftgutter + (col-this.xStart+0.5) * cellSize[0];
                 const y = this.topgutter + (this.nYbins - (row - this.yStart) - 0.5) * cellSize[1];
-                const intensity = zvalues[row][col];
+                let color = this.viridisLUT[Math.floor((zvalues[row][col] - this.zmin) / (this.zmax - this.zmin) * (this.viridisLUT.length - 1))];
                 offsets[2*index] = x;
                 offsets[2*index + 1] = y;
-                colors[4*index] = intensity;
-                colors[4*index + 1] = intensity;
-                colors[4*index + 2] = intensity;
+                colors[4*index] = color[0];
+                colors[4*index + 1] = color[1];
+                colors[4*index + 2] = color[2];
                 colors[4*index + 3] = 1.0;
                 index++;    
             }
@@ -186,35 +191,55 @@ export class heatmap {
         ctx.textAlign = 'center';
     
         const tickLength = 4;
-        const labelEvery = Math.floor(Math.min(this.nYbins,this.nXbins) / 10);
-    
+        
         // X ticks
+        const xlabelEvery = Math.floor(this.nXbins / 10);
         for (let i = 0; i <= this.nXbins; i++) {
-        const x = ox + i * xTickSpacing;
-        ctx.beginPath();
-        ctx.moveTo(x, oy);
-        ctx.lineTo(x, oy + tickLength);
-        ctx.stroke();
-    
-        if (i % labelEvery === 0) {
-            ctx.fillText(i+this.xStart, x, oy + 12);
+            const x = ox + i * xTickSpacing;
+            ctx.beginPath();
+            ctx.moveTo(x, oy);
+            ctx.lineTo(x, oy + tickLength);
+            ctx.stroke();
+        
+            if (i % xlabelEvery === 0) {
+                ctx.fillText(i+this.xStart, x, oy + 12);
+            }
         }
-        }
-    
-        ctx.textAlign = 'right';
     
         // Y ticks
+        ctx.textAlign = 'right';
+        const ylabelEvery = Math.floor(this.nYbins / 10);
         for (let i = 0; i <= this.nYbins; i++) {
-        const y = oy - i * yTickSpacing;
-        ctx.beginPath();
-        ctx.moveTo(ox, oy);
-        ctx.lineTo(ox, yEnd);
-        ctx.stroke();
-    
-        if (i % labelEvery === 0) {
-            ctx.fillText(i+this.yStart, ox - 6, y + 3);
+            const y = oy - i * yTickSpacing;
+            ctx.beginPath();
+            ctx.moveTo(ox, oy);
+            ctx.lineTo(ox, yEnd);
+            ctx.stroke();
+        
+            if (i % ylabelEvery === 0) {
+                ctx.fillText(i+this.yStart, ox - 6, y + 3);
+            }
         }
-        }
+
+        // X title
+        ctx.textAlign = 'center';
+        ctx.fillText(this.xAxisTitle, ox + (xEnd - ox) / 2, oy + 0.6*this.bottomgutter);
+
+        // Y title
+        ctx.save();
+        ctx.translate(ox - 20, (oy + yEnd) / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText(this.yAxisTitle, 0, -0.2*this.leftgutter);
+        ctx.restore();
+
+
+        // colorbar
+        this.drawColorbar(this.markupcanvas, {
+            x: this.glslcanvas.width - this.colorbarWidth,
+            y: this.topgutter,
+            width: 20,
+            height: this.glslcanvas.height - this.topgutter - this.bottomgutter
+        }, this.viridis);
     }
     
     onMouseMove(e) {
@@ -264,13 +289,17 @@ export class heatmap {
       }
 
     onDragComplete(start, end) {
-        // munge corners to be bottom left to top right
+        // set everything for zooming in
         let left = Math.min(start[0], end[0]);
         let right = Math.max(start[0], end[0]);
         let bottom = Math.min(start[1], end[1]);
         let top = Math.max(start[1], end[1]);
         this.dragStart = [left, bottom]; 
         this.dragEnd = [right, top];
+        this.nXbins = this.dragEnd[0] - this.dragStart[0];
+        this.nYbins = this.dragEnd[1] - this.dragStart[1];
+        this.xStart = this.dragStart[0];
+        this.yStart = this.dragStart[1];
         this.draw(this.data)
     }
 
@@ -461,4 +490,94 @@ export class heatmap {
             this.onVertexListUpdated(displayCoords);
         }
     }
-  }
+
+    viridis(t) {
+        t = Math.max(0, Math.min(1, t));
+    
+        const a = [
+            [0.267, 0.004, 0.329], [0.283, 0.141, 0.458], [0.254, 0.265, 0.530],
+            [0.207, 0.372, 0.553], [0.164, 0.471, 0.558], [0.128, 0.567, 0.551],
+            [0.135, 0.659, 0.518], [0.267, 0.749, 0.441], [0.478, 0.821, 0.318],
+            [0.741, 0.873, 0.150], [0.993, 0.906, 0.144]
+        ];
+        
+        if (t === 1) return a[a.length - 1];
+
+        const i = Math.floor(t * (a.length - 1));
+        const frac = t * (a.length - 1) - i;
+    
+        const r = a[i][0] + frac * (a[i + 1][0] - a[i][0]);
+        const g = a[i][1] + frac * (a[i + 1][1] - a[i][1]);
+        const b = a[i][2] + frac * (a[i + 1][2] - a[i][2]);
+    
+        return [r, g, b];
+    }
+
+    createColorscaleLUT(colorscale, size = 256) {
+        const lut = [];
+        for (let i = 0; i < size; i++) {
+            const t = i / (size - 1);
+            lut.push(colorscale(t));
+        }
+        return lut;
+    }
+
+    drawColorbar(canvas, bboxPx, colorFn) {
+        const ctx = canvas.getContext('2d');
+        const { x, y, width, height } = bboxPx;
+    
+        const steps = height;
+        const stepHeight = 1;
+    
+        // Draw gradient
+        for (let i = 0; i < steps; i++) {
+            const t = 1 - i / (steps - 1); // top = t=1, bottom = t=0
+            const [r, g, b] = colorFn(t);
+            ctx.fillStyle = `rgb(${Math.round(r * 255)}, ${Math.round(g * 255)}, ${Math.round(b * 255)})`;
+            ctx.fillRect(x, y + i * stepHeight, width, stepHeight);
+        }
+    
+        // Draw border
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, width, height);
+    
+        // Draw tick marks and labels
+        const ticks = [0, 0.2, 0.4, 0.6, 0.8, 1];
+        ctx.fillStyle = 'white';
+        ctx.font = '12px sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+    
+        for (let t of ticks) {
+            const ty = y + (1 - t) * height;
+            ctx.beginPath();
+            ctx.moveTo(x + width, ty);
+            ctx.lineTo(x + width + 5, ty);
+            ctx.stroke();
+    
+            ctx.fillText((this.zmin + t*(this.zmax-this.zmin)).toFixed(2), x + width + 8, ty);
+        }
+    }
+
+    setColorscaleLimits() {
+        // find current z min and max
+        this.zmin = Infinity;
+        this.zmax = -Infinity;
+        for (let row=this.yStart; row < this.yStart + this.nYbins ; row++) {
+            for (let col=this.xStart; col < this.xStart + this.nXbins; col++) {
+                if(this.dragStart && this.dragEnd) {
+                    const [startX, startY] = this.dragStart;
+                    const [endX, endY] = this.dragEnd;
+                    if (col < startX || col > endX || row < startY || row > endY) {
+                        continue; // Skip this bin if it's outside the drag area
+                    }
+                }
+                if (this.data[row][col] == null) continue;
+                if (this.data[row][col] < this.zmin) this.zmin = this.data[row][col];
+                if (this.data[row][col] > this.zmax) this.zmax = this.data[row][col];
+            }
+        }
+    }
+
+}

@@ -6,11 +6,29 @@
 
 <body>
     <h2>demo glsl heatmap</h2>
-    <div id="heatmaptarget"></div>
+    <div style="display: flex; width: 100%; height: 100%;">
+        <div style="width: 60%" id="heatmaptarget"></div>
+        <div style="width: 40%">
+            <pre>
+demo feature notes
+- click and drag to zoom
+- double click to reset zoom
+- click on plot to create polygon gate vertex 
+(see polycallback to do something with these besides draw)
+- figure is 1M indepdendently drawn shader cells
+- major todo: allow for sparse-packed data, drawing only what's needed
+            </pre>
+        </div>
+    </div>
+
 
     <script type="module">
         import { heatmap } from './heatmap.js';
-        const hm = new heatmap("heatmaptarget", {polycallback: (polycoords)=>console.log(polycoords)});
+        const hm = new heatmap("heatmaptarget", {
+            polycallback: (polycoords)=>console.log(polycoords),
+            xAxisTitle: 'demo x axis',
+            yAxisTitle: 'demo y axis',
+        });
 
         let data = [];
         let dim = 1000
