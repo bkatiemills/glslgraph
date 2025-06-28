@@ -33,6 +33,11 @@ export class heatmap {
         this.annotationcanvas.height = this.glslcanvas.height;
         this.annotationcanvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
         target.appendChild(this.annotationcanvas);
+        this.annotationcanvas.addEventListener('dblclick', (e) => {
+            this.mouseDownTimer.map(clearTimeout);
+            this.mouseUpTimer.map(clearTimeout);
+            this.zoomout(e)
+        });
 
         // coord div
         this.mouseoverdiv = document.createElement('div');
@@ -48,6 +53,8 @@ export class heatmap {
         this.annotationcanvas.addEventListener('mousedown', (e) => this.onMouseDown(e));
         this.annotationcanvas.addEventListener('mouseup', (e) => this.onMouseUp(e));
         this.dragInProgress = false;
+        this.mouseDownTimer = [];
+        this.mouseUpTimer = [];
 
         // markup gutters
         this.leftgutter = this.glslcanvas.width * 0.1;
@@ -92,7 +99,6 @@ export class heatmap {
             this.xStart = this.dragStart[0];
             this.yStart = this.dragStart[1];
         }
-        console.log(this.nXbins, this.nYbins, this.xStart, this.yStart);
 
         const cellSize = [(this.glslcanvas.width-this.leftgutter-this.rightgutter)/this.nXbins, (this.glslcanvas.height-this.bottomgutter-this.topgutter)/this.nYbins];
         const resolution = [this.glslcanvas.width, this.glslcanvas.height];
@@ -218,27 +224,35 @@ export class heatmap {
     }
 
     onMouseDown(e) {
-        const rect = this.annotationcanvas.getBoundingClientRect();
-        const x = Math.floor(e.clientX - rect.left);
-        const y = Math.floor(e.clientY - rect.top);
-      
-        this.dragStart = this.pixel2bin(x, y)
-        this.dragStart_px = [x, y];
-        this.dragInProgress = true;
+        this.mouseDownTimer.push(setTimeout(() => {
+                const rect = this.annotationcanvas.getBoundingClientRect();
+                const x = Math.floor(e.clientX - rect.left);
+                const y = Math.floor(e.clientY - rect.top);
+            
+                this.dragStart = this.pixel2bin(x, y)
+                this.dragStart_px = [x, y];
+                this.dragInProgress = true;
+                this.mouseDownTimer = [];
+            }, 200)
+        );
       }
       
     onMouseUp(e) {
-        const rect = this.annotationcanvas.getBoundingClientRect();
-        const x = Math.floor(e.clientX - rect.left);
-        const y = Math.floor(e.clientY - rect.top);
-      
-        this.dragEnd = this.pixel2bin(x, y)
-      
-        if (this.dragStart) {
-          this.onDragComplete(this.dragStart, this.dragEnd);
-        }
-        this.dragInProgress = false;
-        this.clearcanvas(this.annotationcanvas);
+        this.mouseUpTimer.push(setTimeout(() => {
+                const rect = this.annotationcanvas.getBoundingClientRect();
+                const x = Math.floor(e.clientX - rect.left);
+                const y = Math.floor(e.clientY - rect.top);
+            
+                this.dragEnd = this.pixel2bin(x, y)
+            
+                if (this.dragStart) {
+                    this.onDragComplete(this.dragStart, this.dragEnd);
+                }
+                this.dragInProgress = false;
+                this.clearcanvas(this.annotationcanvas);
+                this.mouseUpTimer = [];
+            }, 200)
+        );
       }
 
     onDragComplete(start, end) {
@@ -284,5 +298,14 @@ export class heatmap {
     clearcanvas(canvas) {
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+
+    zoomout(e){
+        this.dragStart = null;
+        this.dragStart_px = null;
+        this.dragEnd = null;
+        this.clearcanvas(this.annotationcanvas);
+        this.clearcanvas(this.markupcanvas);
+        this.draw(this.data);
     }
   }
