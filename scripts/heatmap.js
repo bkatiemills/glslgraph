@@ -9,23 +9,31 @@ export class heatmap {
     
         // glsl target canvas 
         this.glslcanvas = document.createElement('canvas');
-        this.glslcanvas.style.border = '1px solid red';
         this.glslcanvas.style.position = 'absolute';
-        this.glslcanvas.style.zIndex = 1;
+        this.glslcanvas.style.zIndex = 0;
         this.glslcanvas.width = options.width || 512;
         this.glslcanvas.height = options.height || 512;
         target.appendChild(this.glslcanvas);
 
-        // markup canvas
+
+        // markup canvas - top layer for annotations as well as mouse interactions
         this.markupcanvas = document.createElement('canvas');
-        this.markupcanvas.style.border = '1px solid blue';
         this.markupcanvas.style.position = 'absolute';
-        this.glslcanvas.style.zIndex = 0;
+        this.markupcanvas.style.zIndex = 1;
         this.markupcanvas.width = this.glslcanvas.width;
         this.markupcanvas.height = this.glslcanvas.height;
         this.markupcanvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
         target.appendChild(this.markupcanvas);
-        
+
+        // annotation canvas - scales, titles
+        this.annotationcanvas = document.createElement('canvas');
+        this.annotationcanvas.style.position = 'absolute';
+        this.annotationcanvas.style.zIndex = 2;
+        this.annotationcanvas.width = this.glslcanvas.width;
+        this.annotationcanvas.height = this.glslcanvas.height;
+        this.annotationcanvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+        target.appendChild(this.annotationcanvas);
+
         // coord div
         this.mouseoverdiv = document.createElement('div');
         this.mouseoverdiv.style.color = 'black';
@@ -35,9 +43,11 @@ export class heatmap {
 
         // click-drag-release
         this.dragStart = null;
+        this.dragStart_px = null;
         this.dragEnd = null;
-        this.markupcanvas.addEventListener('mousedown', (e) => this.onMouseDown(e));
-        this.markupcanvas.addEventListener('mouseup', (e) => this.onMouseUp(e));
+        this.annotationcanvas.addEventListener('mousedown', (e) => this.onMouseDown(e));
+        this.annotationcanvas.addEventListener('mouseup', (e) => this.onMouseUp(e));
+        this.dragInProgress = false;
 
         // markup gutters
         this.leftgutter = this.glslcanvas.width * 0.1;
@@ -194,24 +204,31 @@ export class heatmap {
     }
     
     handleMouseMove(e) {
-        const rect = this.markupcanvas.getBoundingClientRect();
+        const rect = this.annotationcanvas.getBoundingClientRect();
         const x = Math.floor(e.clientX - rect.left);
         const y = Math.floor(e.clientY - rect.top);
         const [xBin, yBin] = this.pixel2bin(x, y);
+
+        if (this.dragInProgress) {
+            this.clearcanvas(this.annotationcanvas)
+            this.boxdraw(this.annotationcanvas, this.dragStart_px, [x, y]);
+        }
 
         this.mouseoverdiv.textContent = `Bin: (${xBin}, ${yBin})`;
     }
 
     onMouseDown(e) {
-        const rect = this.markupcanvas.getBoundingClientRect();
+        const rect = this.annotationcanvas.getBoundingClientRect();
         const x = Math.floor(e.clientX - rect.left);
         const y = Math.floor(e.clientY - rect.top);
       
         this.dragStart = this.pixel2bin(x, y)
+        this.dragStart_px = [x, y];
+        this.dragInProgress = true;
       }
       
-      onMouseUp(e) {
-        const rect = this.markupcanvas.getBoundingClientRect();
+    onMouseUp(e) {
+        const rect = this.annotationcanvas.getBoundingClientRect();
         const x = Math.floor(e.clientX - rect.left);
         const y = Math.floor(e.clientY - rect.top);
       
@@ -220,9 +237,11 @@ export class heatmap {
         if (this.dragStart) {
           this.onDragComplete(this.dragStart, this.dragEnd);
         }
+        this.dragInProgress = false;
+        this.clearcanvas(this.annotationcanvas);
       }
 
-      onDragComplete(start, end) {
+    onDragComplete(start, end) {
         // munge corners to be bottom left to top right
         let left = Math.min(start[0], end[0]);
         let right = Math.max(start[0], end[0]);
@@ -231,11 +250,39 @@ export class heatmap {
         this.dragStart = [left, bottom]; 
         this.dragEnd = [right, top];
         this.draw(this.data)
-      }
+    }
 
     pixel2bin(x, y) {
         const xBin = Math.floor((x - this.leftgutter) / ((this.glslcanvas.width - this.leftgutter - this.rightgutter) / this.nXbins));
         const yBin = Math.floor((this.glslcanvas.height - this.bottomgutter - y) / ((this.glslcanvas.height - this.topgutter - this.bottomgutter) / this.nYbins));
         return [xBin, yBin];
+    }
+
+    boxdraw(canvas, coord0, coord1){
+        const ctx = canvas.getContext('2d');
+
+        // Coordinates of two opposite corners
+        const x1 = coord0[0];
+        const y1 = coord0[1];
+        const x2 = coord1[0];
+        const y2 = coord1[1];
+        
+        // Normalize coordinates to handle any corner pair
+        const left   = Math.min(x1, x2);
+        const top    = Math.min(y1, y2);
+        const width  = Math.abs(x2 - x1);
+        const height = Math.abs(y2 - y1);
+        
+        // Set drawing style
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'white';
+        
+        // Draw rectangle outline
+        ctx.strokeRect(left, top, width, height);
+    }
+
+    clearcanvas(canvas) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
   }
