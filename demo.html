@@ -6,10 +6,7 @@
 
 <body>
     <h2>demo glsl heatmap</h2>
-    <div style="display: flex; width: 100%; height: 100%;">
-        <div style="width: 60%" id="heatmaptarget"></div>
-        <div style="width: 40%">
-            <pre>
+    <pre>
 demo feature notes
 - click and drag to zoom
 - double click to reset zoom
@@ -17,9 +14,10 @@ demo feature notes
 (see polycallback to do something with these besides draw)
 - figure is 1M indepdendently drawn shader cells
 - major todo: allow for sparse-packed data, drawing only what's needed
-            </pre>
-        </div>
-    </div>
+    </pre>
+
+    <div id="heatmaptarget"></div>
+
 
 
     <script type="module">

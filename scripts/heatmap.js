@@ -33,13 +33,6 @@ export class heatmap {
         this.annotationcanvas.height = this.glslcanvas.height;        
         target.appendChild(this.annotationcanvas);
 
-        // coord div
-        this.mouseoverdiv = document.createElement('div');
-        this.mouseoverdiv.style.color = 'black';
-        this.mouseoverdiv.style.position = 'absolute';
-        this.mouseoverdiv.style.top = '600px';
-        target.appendChild(this.mouseoverdiv);
-
         // vertext control div
         this.vertexcontrol = document.createElement('div');
         this.vertexcontrol.style.position = 'absolute';
@@ -253,7 +246,7 @@ export class heatmap {
             this.boxdraw(this.annotationcanvas, this.dragStart_px, [x, y]);
         }
 
-        this.mouseoverdiv.textContent = `Bin: (${xBin}, ${yBin})`;
+        //console.log(`Bin: (${xBin}, ${yBin})`);
     }
 
     onMouseDown(e) {
