@@ -15,29 +15,21 @@ export class heatmap {
         this.glslcanvas.height = options.height || 512;
         target.appendChild(this.glslcanvas);
 
-
-        // markup canvas - top layer for annotations as well as mouse interactions
+        // markup canvas - scales, titles
         this.markupcanvas = document.createElement('canvas');
         this.markupcanvas.style.position = 'absolute';
         this.markupcanvas.style.zIndex = 1;
         this.markupcanvas.width = this.glslcanvas.width;
         this.markupcanvas.height = this.glslcanvas.height;
-        this.markupcanvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
         target.appendChild(this.markupcanvas);
 
-        // annotation canvas - scales, titles
+        // annotation canvas - top layer for annotations as well as mouse interactions
         this.annotationcanvas = document.createElement('canvas');
         this.annotationcanvas.style.position = 'absolute';
         this.annotationcanvas.style.zIndex = 2;
         this.annotationcanvas.width = this.glslcanvas.width;
-        this.annotationcanvas.height = this.glslcanvas.height;
-        this.annotationcanvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+        this.annotationcanvas.height = this.glslcanvas.height;        
         target.appendChild(this.annotationcanvas);
-        this.annotationcanvas.addEventListener('dblclick', (e) => {
-            this.mouseDownTimer.map(clearTimeout);
-            this.mouseUpTimer.map(clearTimeout);
-            this.zoomout(e)
-        });
 
         // coord div
         this.mouseoverdiv = document.createElement('div');
@@ -46,22 +38,36 @@ export class heatmap {
         this.mouseoverdiv.style.top = '600px';
         target.appendChild(this.mouseoverdiv);
 
+        // vertext control div
+        this.vertexcontrol = document.createElement('div');
+        this.vertexcontrol.style.position = 'absolute';
+        this.vertexcontrol.style.left = '600px';
+        target.appendChild(this.vertexcontrol);
+
         // click-drag-release
         this.dragStart = null;
         this.dragStart_px = null;
         this.dragEnd = null;
+        this.annotationcanvas.addEventListener('mousemove', (e) => this.onMouseMove(e));
         this.annotationcanvas.addEventListener('mousedown', (e) => this.onMouseDown(e));
         this.annotationcanvas.addEventListener('mouseup', (e) => this.onMouseUp(e));
+        this.annotationcanvas.addEventListener('dblclick', (e) => this.onDblClick(e));
+        this.annotationcanvas.addEventListener('click', (e) => this.onClick(e));
         this.dragInProgress = false;
         this.mouseDownTimer = [];
         this.mouseUpTimer = [];
+        this.clickTimer = [];
 
         // markup gutters
         this.leftgutter = this.glslcanvas.width * 0.1;
         this.topgutter = this.glslcanvas.height * 0.02;
         this.rightgutter = this.glslcanvas.width * 0.02;
         this.bottomgutter = this.glslcanvas.height * 0.1;
-    
+
+        // annotation members
+        this.polyVertices_px = [];
+        this.onVertexListUpdated = options.polycallback || null;
+
         // glsl guts
         this.gl = this.glslcanvas.getContext('webgl2');
         if (!this.gl) {
@@ -88,6 +94,8 @@ export class heatmap {
     }
 
     draw(zvalues){
+        this.polyVertices_px = [];
+        this.vertexcontrol.innerHTML = '';
         this.data = zvalues;
         this.nXbins = zvalues[0].length;
         this.nYbins = zvalues.length;
@@ -209,7 +217,7 @@ export class heatmap {
         }
     }
     
-    handleMouseMove(e) {
+    onMouseMove(e) {
         const rect = this.annotationcanvas.getBoundingClientRect();
         const x = Math.floor(e.clientX - rect.left);
         const y = Math.floor(e.clientY - rect.top);
@@ -233,7 +241,7 @@ export class heatmap {
                 this.dragStart_px = [x, y];
                 this.dragInProgress = true;
                 this.mouseDownTimer = [];
-            }, 200)
+            }, 250)
         );
       }
       
@@ -251,7 +259,7 @@ export class heatmap {
                 this.dragInProgress = false;
                 this.clearcanvas(this.annotationcanvas);
                 this.mouseUpTimer = [];
-            }, 200)
+            }, 100)
         );
       }
 
@@ -266,10 +274,64 @@ export class heatmap {
         this.draw(this.data)
     }
 
-    pixel2bin(x, y) {
+    onClick(e){
+        if(!this.dragInProgress){
+            this.mouseDownTimer.map(clearTimeout);
+            this.mouseUpTimer.map(clearTimeout);
+            this.clickTimer.push(setTimeout(() => {
+                    const rect = this.annotationcanvas.getBoundingClientRect();
+                    const x = Math.floor(e.clientX - rect.left);
+                    const y = Math.floor(e.clientY - rect.top);
+                    this.polyVertices_px.push([x, y]);
+                    this.manageVertexControl();
+                    this.renderPoly(this.annotationcanvas);
+                    this.clickTimer = [];
+                }, 250)
+            )
+        }
+    }
+
+    onDblClick(e) {
+        this.mouseDownTimer.map(clearTimeout);
+        this.mouseUpTimer.map(clearTimeout);
+        this.clickTimer.map(clearTimeout);
+        this.zoomout()
+    }
+    
+    zoomout(){
+        this.dragStart = null;
+        this.dragStart_px = null;
+        this.dragEnd = null;
+        this.polyVertices_px = [];
+        this.clearcanvas(this.annotationcanvas);
+        this.clearcanvas(this.markupcanvas);
+        this.draw(this.data);
+    }
+
+    pixel2binX(x){
         const xBin = Math.floor((x - this.leftgutter) / ((this.glslcanvas.width - this.leftgutter - this.rightgutter) / this.nXbins));
+        return xBin;
+    }
+
+    pixel2binY(y){
         const yBin = Math.floor((this.glslcanvas.height - this.bottomgutter - y) / ((this.glslcanvas.height - this.topgutter - this.bottomgutter) / this.nYbins));
-        return [xBin, yBin];
+        return yBin;
+    }
+
+    pixel2bin(x, y) {
+        return [this.pixel2binX(x), this.pixel2binY(y)];
+    }
+
+    bin2pixelX(xBin) {
+        return this.leftgutter + (xBin + 0.5) * ((this.glslcanvas.width - this.leftgutter - this.rightgutter) / this.nXbins);
+    }
+
+    bin2pixelY(yBin) {
+        return this.glslcanvas.height - this.bottomgutter - (yBin + 0.5) * ((this.glslcanvas.height - this.topgutter - this.bottomgutter) / this.nYbins);
+    }
+
+    bin2pixel(x,y){
+        return [this.bin2pixelX(x), this.bin2pixelY(y)];
     }
 
     boxdraw(canvas, coord0, coord1){
@@ -300,12 +362,103 @@ export class heatmap {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
 
-    zoomout(e){
-        this.dragStart = null;
-        this.dragStart_px = null;
-        this.dragEnd = null;
-        this.clearcanvas(this.annotationcanvas);
-        this.clearcanvas(this.markupcanvas);
-        this.draw(this.data);
+    renderPoly(canvas) {
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if (this.polyVertices_px.length < 2) return;
+
+        ctx.beginPath();
+        ctx.moveTo(this.polyVertices_px[0][0], this.polyVertices_px[0][1]);
+        for (let i = 1; i < this.polyVertices_px.length; i++) {
+            ctx.lineTo(this.polyVertices_px[i][0], this.polyVertices_px[i][1]);
+        }
+        ctx.closePath();
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+    }
+    
+    manageVertexControl() {
+        this.vertexcontrol.innerHTML = '';
+    
+        const ul = document.createElement('ul');
+    
+        this.polyVertices_px.forEach((vertex, index) => {
+            const li = document.createElement('li');
+            li.style.marginBottom = '8px';
+    
+            const inputX = document.createElement('input');
+            inputX.type = 'number';
+            inputX.value = this.pixel2binX(vertex[0]);
+            inputX.style.width = '70px';
+            inputX.addEventListener('input', () => {
+                this.polyVertices_px[index][0] = this.bin2pixelX(parseFloat(inputX.value));
+                this.renderPoly(this.annotationcanvas);
+            });
+            
+            const inputY = document.createElement('input');
+            inputY.type = 'number';
+            inputY.value = this.pixel2binY(vertex[1]);
+            inputY.style.width = '70px';
+            inputY.addEventListener('input', () => {
+                this.polyVertices_px[index][1] = this.bin2pixelY(parseFloat(inputY.value));
+                this.renderPoly(this.annotationcanvas);
+            });
+    
+            // Delete button
+            const deleteBtn = document.createElement('button');
+            deleteBtn.textContent = '🗑️';
+            deleteBtn.title = 'Delete vertex';
+            deleteBtn.addEventListener('click', () => {
+                this.polyVertices_px.splice(index, 1);
+                this.manageVertexControl();
+                this.renderPoly(this.annotationcanvas);
+            });
+    
+            // Move up button
+            const upBtn = document.createElement('button');
+            upBtn.textContent = '⬆️';
+            upBtn.title = 'Move up';
+            upBtn.disabled = index === 0;
+            upBtn.addEventListener('click', () => {
+                [this.polyVertices_px[index - 1], this.polyVertices_px[index]] =
+                    [this.polyVertices_px[index], this.polyVertices_px[index - 1]];
+                this.manageVertexControl();
+                this.renderPoly(this.annotationcanvas);
+            });
+    
+            // Move down button
+            const downBtn = document.createElement('button');
+            downBtn.textContent = '⬇️';
+            downBtn.title = 'Move down';
+            downBtn.disabled = index === this.polyVertices_px.length - 1;
+            downBtn.addEventListener('click', () => {
+                [this.polyVertices_px[index], this.polyVertices_px[index + 1]] =
+                    [this.polyVertices_px[index + 1], this.polyVertices_px[index]];
+                this.manageVertexControl();
+                this.renderPoly(this.annotationcanvas);
+            });
+    
+            // Assemble the list item
+            li.appendChild(document.createTextNode(`Vertex ${index + 1}: `));
+            li.appendChild(inputX);
+            li.appendChild(document.createTextNode(', '));
+            li.appendChild(inputY);
+            li.appendChild(deleteBtn);
+            li.appendChild(upBtn);
+            li.appendChild(downBtn);
+    
+            ul.appendChild(li);
+        });
+    
+        this.vertexcontrol.appendChild(ul);
+
+        if (typeof this.onVertexListUpdated === 'function') {
+            const displayCoords = this.polyVertices_px.map(([px, py]) => [
+                this.pixel2binX(px),
+                this.pixel2binY(py)
+            ]);
+            this.onVertexListUpdated(displayCoords);
+        }
     }
   }

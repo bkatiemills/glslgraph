@@ -10,7 +10,7 @@
 
     <script type="module">
         import { heatmap } from './heatmap.js';
-        const hm = new heatmap("heatmaptarget");
+        const hm = new heatmap("heatmaptarget", {polycallback: (polycoords)=>console.log(polycoords)});
 
         let data = [];
         let dim = 1000
