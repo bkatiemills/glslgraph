@@ -25,19 +25,33 @@ export class heatmap {
         this.markupcanvas.height = this.glslcanvas.height;
         target.appendChild(this.markupcanvas);
 
+        // polygon canvas
+        this.polycanvas = document.createElement('canvas');
+        this.polycanvas.style.position = 'absolute';
+        this.polycanvas.style.zIndex = 2;
+        this.polycanvas.width = this.glslcanvas.width;
+        this.polycanvas.height = this.glslcanvas.height;
+        target.appendChild(this.polycanvas);
+
         // annotation canvas - top layer for annotations as well as mouse interactions
         this.annotationcanvas = document.createElement('canvas');
         this.annotationcanvas.style.position = 'absolute';
-        this.annotationcanvas.style.zIndex = 2;
+        this.annotationcanvas.style.zIndex = 3;
         this.annotationcanvas.width = this.glslcanvas.width;
         this.annotationcanvas.height = this.glslcanvas.height;        
         target.appendChild(this.annotationcanvas);
 
-        // vertext control div
+        // vertex control div
         this.vertexcontrol = document.createElement('div');
         this.vertexcontrol.style.position = 'absolute';
         this.vertexcontrol.style.left = '600px';
         target.appendChild(this.vertexcontrol);
+
+        // cursor reporting
+        this.cursorreport = document.createElement('div');
+        this.cursorreport.style.position = 'absolute';
+        this.cursorreport.style.top = '800px';
+        target.appendChild(this.cursorreport);
 
         // click-drag-release
         this.dragStart = null;
@@ -225,7 +239,6 @@ export class heatmap {
         ctx.fillText(this.yAxisTitle, 0, -0.2*this.leftgutter);
         ctx.restore();
 
-
         // colorbar
         this.drawColorbar(this.markupcanvas, {
             x: this.glslcanvas.width - this.colorbarWidth,
@@ -242,11 +255,39 @@ export class heatmap {
         const [xBin, yBin] = this.pixel2bin(x, y);
 
         if (this.dragInProgress) {
+            // dragging: selecting a zoom region
             this.clearcanvas(this.annotationcanvas)
             this.boxdraw(this.annotationcanvas, this.dragStart_px, [x, y]);
+        } else {
+            // not dragging: cursors
+            this.clearcanvas(this.annotationcanvas)
+            this.drawCursor(this.annotationcanvas, x, y);
+            this.cursorreport.innerHTML = `Cursor: (${xBin}, ${yBin})`;
         }
 
         //console.log(`Bin: (${xBin}, ${yBin})`);
+    }
+
+    drawCursor(canvas, x, y) {
+        const ctx = canvas.getContext('2d');
+        if(x<this.leftgutter || x > canvas.width-this.rightgutter || y < this.topgutter || y > canvas.height-this.bottomgutter) {
+            return
+        }
+        
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 1;
+    
+        // Horizontal line
+        ctx.beginPath();
+        ctx.moveTo(this.leftgutter, y);
+        ctx.lineTo(canvas.width-this.rightgutter, y);
+        ctx.stroke();
+    
+        // Vertical line
+        ctx.beginPath();
+        ctx.moveTo(x, this.topgutter);
+        ctx.lineTo(x, canvas.height-this.bottomgutter);
+        ctx.stroke();
     }
 
     onMouseDown(e) {
@@ -275,6 +316,7 @@ export class heatmap {
                     this.onDragComplete(this.dragStart, this.dragEnd);
                 }
                 this.dragInProgress = false;
+                this.clearcanvas(this.polycanvas);
                 this.clearcanvas(this.annotationcanvas);
                 this.mouseUpTimer = [];
             }, 100)
@@ -301,12 +343,12 @@ export class heatmap {
             this.mouseDownTimer.map(clearTimeout);
             this.mouseUpTimer.map(clearTimeout);
             this.clickTimer.push(setTimeout(() => {
-                    const rect = this.annotationcanvas.getBoundingClientRect();
+                    const rect = this.polycanvas.getBoundingClientRect();
                     const x = Math.floor(e.clientX - rect.left);
                     const y = Math.floor(e.clientY - rect.top);
                     this.polyVertices_px.push([x, y]);
                     this.manageVertexControl();
-                    this.renderPoly(this.annotationcanvas);
+                    this.renderPoly(this.polycanvas);
                     this.clickTimer = [];
                 }, 250)
             )
@@ -326,6 +368,7 @@ export class heatmap {
         this.dragEnd = null;
         this.polyVertices_px = [];
         this.clearcanvas(this.annotationcanvas);
+        this.clearcanvas(this.polycanvas);
         this.clearcanvas(this.markupcanvas);
         this.draw(this.data);
     }
@@ -415,7 +458,7 @@ export class heatmap {
             inputX.style.width = '70px';
             inputX.addEventListener('input', () => {
                 this.polyVertices_px[index][0] = this.bin2pixelX(parseFloat(inputX.value));
-                this.renderPoly(this.annotationcanvas);
+                this.renderPoly(this.polycanvas);
             });
             
             const inputY = document.createElement('input');
@@ -424,7 +467,7 @@ export class heatmap {
             inputY.style.width = '70px';
             inputY.addEventListener('input', () => {
                 this.polyVertices_px[index][1] = this.bin2pixelY(parseFloat(inputY.value));
-                this.renderPoly(this.annotationcanvas);
+                this.renderPoly(this.polycanvas);
             });
     
             // Delete button
@@ -434,7 +477,7 @@ export class heatmap {
             deleteBtn.addEventListener('click', () => {
                 this.polyVertices_px.splice(index, 1);
                 this.manageVertexControl();
-                this.renderPoly(this.annotationcanvas);
+                this.renderPoly(this.polycanvas);
             });
     
             // Move up button
@@ -446,7 +489,7 @@ export class heatmap {
                 [this.polyVertices_px[index - 1], this.polyVertices_px[index]] =
                     [this.polyVertices_px[index], this.polyVertices_px[index - 1]];
                 this.manageVertexControl();
-                this.renderPoly(this.annotationcanvas);
+                this.renderPoly(this.polycanvas);
             });
     
             // Move down button
@@ -458,7 +501,7 @@ export class heatmap {
                 [this.polyVertices_px[index], this.polyVertices_px[index + 1]] =
                     [this.polyVertices_px[index + 1], this.polyVertices_px[index]];
                 this.manageVertexControl();
-                this.renderPoly(this.annotationcanvas);
+                this.renderPoly(this.polycanvas);
             });
     
             // Assemble the list item
