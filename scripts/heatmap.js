@@ -261,18 +261,16 @@ export class heatmap {
         } else {
             // not dragging: cursors
             this.clearcanvas(this.annotationcanvas)
+            if(x<this.leftgutter || x > this.annotationcanvas.width-this.rightgutter || y < this.topgutter || y > this.annotationcanvas.height-this.bottomgutter) {
+                return
+            }
             this.drawCursor(this.annotationcanvas, x, y);
             this.cursorreport.innerHTML = `Cursor: (${xBin}, ${yBin})`;
         }
-
-        //console.log(`Bin: (${xBin}, ${yBin})`);
     }
 
     drawCursor(canvas, x, y) {
         const ctx = canvas.getContext('2d');
-        if(x<this.leftgutter || x > canvas.width-this.rightgutter || y < this.topgutter || y > canvas.height-this.bottomgutter) {
-            return
-        }
         
         ctx.strokeStyle = 'white';
         ctx.lineWidth = 1;
