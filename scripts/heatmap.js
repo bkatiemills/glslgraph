@@ -6,52 +6,86 @@ export class heatmap {
         if (!target) {
             throw new Error(`No element found with ID "${divId}"`);
         }
-    
-        this.colorbarWidth = 70
 
-        // glsl target canvas 
+        // decide on sizes and scales
+        let target_size = target.getBoundingClientRect();
+        let sidebar_width = 400
+        /// 1st precedence: options.[width, height] sets the plot size; 
+        /// 2nd precendence: a target div's pre-defined size should bound the plot + sidebar
+        /// 3rd precedence: the plot should fill the window, minus the sidebar
+        if(options.width){
+            this.plot_width = options.width;
+        } else if(target_size.width) {
+            this.plot_width = target_size.width - sidebar_width;
+        } else {
+            this.plot_width = window.innerWidth - sidebar_width;
+        }
+        if(options.height){
+            this.plot_height = options.height;
+        } else if(target_size.height) {
+            this.plot_height = target_size.height;
+        } else {
+            this.plot_height = window.innerHeight;
+        }
+        this.colorbarWidth = 70;
+        this.tickFontSize = 16;
+        this.axisTitleFontSize = 20;
+        this.leftgutter = Math.max(this.plot_width*0.05, this.axisTitleFontSize + 4*this.tickFontSize);
+        this.topgutter = this.plot_height * 0.02;
+        this.rightgutter = this.plot_width * 0.02 + this.colorbarWidth;
+        this.bottomgutter = Math.max(this.plot_height*0.05, this.axisTitleFontSize + 2*this.tickFontSize);
+
+        // inject wrappers into parent div
+        target.style.display = 'flex';
+        const plotWrapper = document.createElement('div');
+        plotWrapper.style.width = `${this.plot_width}px`;
+        plotWrapper.style.height = `${this.plot_height}px`;
+        const sidebarWrapper = document.createElement('div');
+        sidebarWrapper.style.width = `${sidebar_width}px`;
+        sidebarWrapper.style.height = `${this.plot_height}px`;
+        target.appendChild(plotWrapper);
+        target.appendChild(sidebarWrapper);
+
+        // set up canvas stack
+        /// glsl target canvas 
         this.glslcanvas = document.createElement('canvas');
         this.glslcanvas.style.position = 'absolute';
         this.glslcanvas.style.zIndex = 0;
-        this.glslcanvas.width = options.width || 512+this.colorbarWidth;
-        this.glslcanvas.height = options.height || 512;
-        target.appendChild(this.glslcanvas);
+        this.glslcanvas.width = this.plot_width //options.width || 512+this.colorbarWidth;
+        this.glslcanvas.height = this.plot_height //options.height || 512;
+        plotWrapper.appendChild(this.glslcanvas);
 
-        // markup canvas - scales, titles
+        /// markup canvas - scales, titles
         this.markupcanvas = document.createElement('canvas');
         this.markupcanvas.style.position = 'absolute';
         this.markupcanvas.style.zIndex = 1;
-        this.markupcanvas.width = this.glslcanvas.width;
-        this.markupcanvas.height = this.glslcanvas.height;
-        target.appendChild(this.markupcanvas);
+        this.markupcanvas.width = this.plot_width;
+        this.markupcanvas.height = this.plot_height;
+        plotWrapper.appendChild(this.markupcanvas);
 
-        // polygon canvas
+        /// polygon canvas
         this.polycanvas = document.createElement('canvas');
         this.polycanvas.style.position = 'absolute';
         this.polycanvas.style.zIndex = 2;
-        this.polycanvas.width = this.glslcanvas.width;
-        this.polycanvas.height = this.glslcanvas.height;
-        target.appendChild(this.polycanvas);
+        this.polycanvas.width = this.plot_width;
+        this.polycanvas.height = this.plot_height;
+        plotWrapper.appendChild(this.polycanvas);
 
-        // annotation canvas - top layer for annotations as well as mouse interactions
+        /// annotation canvas - top layer for annotations as well as mouse interactions
         this.annotationcanvas = document.createElement('canvas');
         this.annotationcanvas.style.position = 'absolute';
         this.annotationcanvas.style.zIndex = 3;
-        this.annotationcanvas.width = this.glslcanvas.width;
-        this.annotationcanvas.height = this.glslcanvas.height;        
-        target.appendChild(this.annotationcanvas);
-
-        // vertex control div
-        this.vertexcontrol = document.createElement('div');
-        this.vertexcontrol.style.position = 'absolute';
-        this.vertexcontrol.style.left = '600px';
-        target.appendChild(this.vertexcontrol);
+        this.annotationcanvas.width = this.plot_width;
+        this.annotationcanvas.height = this.plot_height;        
+        plotWrapper.appendChild(this.annotationcanvas);
 
         // cursor reporting
         this.cursorreport = document.createElement('div');
-        this.cursorreport.style.position = 'absolute';
-        this.cursorreport.style.top = '800px';
-        target.appendChild(this.cursorreport);
+        sidebarWrapper.appendChild(this.cursorreport);
+
+        /// vertex control div
+        this.vertexcontrol = document.createElement('div');
+        sidebarWrapper.appendChild(this.vertexcontrol);
 
         // click-drag-release
         this.dragStart = null;
@@ -66,12 +100,6 @@ export class heatmap {
         this.mouseDownTimer = [];
         this.mouseUpTimer = [];
         this.clickTimer = [];
-
-        // markup gutters
-        this.leftgutter = this.glslcanvas.width * 0.1;
-        this.topgutter = this.glslcanvas.height * 0.02;
-        this.rightgutter = this.glslcanvas.width * 0.02 + this.colorbarWidth;
-        this.bottomgutter = this.glslcanvas.height * 0.1;
 
         // annotation members
         this.polyVertices_px = [];
@@ -201,6 +229,7 @@ export class heatmap {
         
         // X ticks
         const xlabelEvery = Math.floor(this.nXbins / 10);
+        ctx.font = `${this.tickFontSize}px sans-serif`;
         for (let i = 0; i <= this.nXbins; i++) {
             const x = ox + i * xTickSpacing;
             ctx.beginPath();
@@ -209,7 +238,7 @@ export class heatmap {
             ctx.stroke();
         
             if (i % xlabelEvery === 0) {
-                ctx.fillText(i+this.xStart, x, oy + 12);
+                ctx.fillText(i+this.xStart, x, oy + this.tickFontSize + 3);
             }
         }
     
@@ -229,14 +258,15 @@ export class heatmap {
         }
 
         // X title
+        ctx.font = `${this.axisTitleFontSize}px sans-serif`;
         ctx.textAlign = 'center';
-        ctx.fillText(this.xAxisTitle, ox + (xEnd - ox) / 2, oy + 0.6*this.bottomgutter);
+        ctx.fillText(this.xAxisTitle, ox + (xEnd - ox) / 2, oy + this.axisTitleFontSize + this.tickFontSize);
 
         // Y title
         ctx.save();
-        ctx.translate(ox - 20, (oy + yEnd) / 2);
+        ctx.translate(ox - this.axisTitleFontSize*2, (oy + yEnd) / 2);
         ctx.rotate(-Math.PI / 2);
-        ctx.fillText(this.yAxisTitle, 0, -0.2*this.leftgutter);
+        ctx.fillText(this.yAxisTitle, 0, -this.axisTitleFontSize);
         ctx.restore();
 
         // colorbar
@@ -579,7 +609,7 @@ export class heatmap {
         // Draw tick marks and labels
         const ticks = [0, 0.2, 0.4, 0.6, 0.8, 1];
         ctx.fillStyle = 'white';
-        ctx.font = '12px sans-serif';
+        ctx.font = `${this.tickFontSize}px sans-serif`;
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
     
