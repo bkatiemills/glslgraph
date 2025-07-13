@@ -26,7 +26,7 @@ demo feature notes
             polycallback: (polycoords)=>console.log(polycoords),
             xAxisTitle: 'demo x axis',
             yAxisTitle: 'demo y axis',
-
+            scale: 'log'
         });
 
         let data = [];
@@ -38,6 +38,7 @@ demo feature notes
             }
             data.push(row);
         }
+
         hm.draw(data)
 
       </script>

@@ -87,6 +87,20 @@ export class heatmap {
         this.cursorreport = document.createElement('div');
         sidebarWrapper.appendChild(this.cursorreport);
 
+        // lin/log control
+        this.scaleControl = document.createElement('select');
+        this.scaleControl.innerHTML = `
+            <option value="linear">Linear</option>
+            <option value="log">Logarithmic</option>
+        `;
+        this.scaleControl.value = options.scale || 'linear';
+        this.scaleControl.addEventListener('change', () => {
+            this.scale = this.scaleControl.value;
+            this.draw(this.data);
+        });
+        this.scale = this.scaleControl.value;
+        sidebarWrapper.appendChild(this.scaleControl);
+
         /// vertex control div
         this.vertexcontrol = document.createElement('div');
         sidebarWrapper.appendChild(this.vertexcontrol);
@@ -132,14 +146,8 @@ export class heatmap {
 
         this.xAxisTitle = options.xAxisTitle || '';
         this.yAxisTitle = options.yAxisTitle || '';
-
-        this.init();
     }
     
-    init() {
-
-    }
-
     draw(zvalues){
         this.polyVertices_px = [];
         this.vertexcontrol.innerHTML = '';
@@ -170,7 +178,8 @@ export class heatmap {
                 }
                 const x = this.leftgutter + (col-this.xStart+0.5) * cellSize[0];
                 const y = this.topgutter + (this.nYbins - (row - this.yStart) - 0.5) * cellSize[1];
-                let color = this.viridisLUT[Math.floor((zvalues[row][col] - this.zmin) / (this.zmax - this.zmin) * (this.viridisLUT.length - 1))];
+                let val = this.scale === 'linear' ? zvalues[row][col] : Math.log(zvalues[row][col]);
+                let color = this.viridisLUT[Math.floor((val - this.zmin) / (this.zmax - this.zmin) * (this.viridisLUT.length - 1))];
                 offsets[2*index] = x;
                 offsets[2*index + 1] = y;
                 colors[4*index] = color[0];
@@ -298,7 +307,8 @@ export class heatmap {
                 return
             }
             this.drawCursor(this.annotationcanvas, x, y);
-            this.cursorreport.innerHTML = `Cursor: (${xBin}, ${yBin})`;
+            let val = this.scale === 'linear' ? this.data[yBin][xBin] : Math.log(this.data[yBin][xBin]);
+            this.cursorreport.innerHTML = `Cursor: (${xBin}, ${yBin}: ${val})`;
         }
     }
 
@@ -640,9 +650,21 @@ export class heatmap {
                         continue; // Skip this bin if it's outside the drag area
                     }
                 }
-                if (this.data[row][col] == null) continue;
-                if (this.data[row][col] < this.zmin) this.zmin = this.data[row][col];
-                if (this.data[row][col] > this.zmax) this.zmax = this.data[row][col];
+                if(this.scale == 'linear'){
+                    if (this.data[row][col] == null) continue;
+                    if (this.data[row][col] < this.zmin) this.zmin = this.data[row][col];
+                    if (this.data[row][col] > this.zmax) this.zmax = this.data[row][col];
+                } else if(this.scale == 'log'){
+                    if (this.data[row][col] <= 0){
+                        // bounce back to linear
+                        this.scale = 'linear';
+                        this.scaleControl.value = 'linear';
+                        this.draw(this.data);
+                    }
+                    if (this.data[row][col] == null) continue;
+                    if (Math.log(this.data[row][col]) < this.zmin) this.zmin = Math.log(this.data[row][col]);
+                    if (Math.log(this.data[row][col]) > this.zmax) this.zmax = Math.log(this.data[row][col]);
+                }
             }
         }
     }
