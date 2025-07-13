@@ -7,7 +7,7 @@ export class heatmap {
             throw new Error(`No element found with ID "${divId}"`);
         }
 
-        // decide on sizes and scales
+        // decide on DOM sizes and scales
         let target_size = target.getBoundingClientRect();
         let sidebar_width = 400
         /// 1st precedence: options.[width, height] sets the plot size; 
@@ -27,13 +27,6 @@ export class heatmap {
         } else {
             this.plot_height = window.innerHeight;
         }
-        this.colorbarWidth = 70;
-        this.tickFontSize = 16;
-        this.axisTitleFontSize = 20;
-        this.leftgutter = Math.max(this.plot_width*0.05, this.axisTitleFontSize + 4*this.tickFontSize);
-        this.topgutter = this.plot_height * 0.02;
-        this.rightgutter = this.plot_width * 0.02 + this.colorbarWidth;
-        this.bottomgutter = Math.max(this.plot_height*0.05, this.axisTitleFontSize + 2*this.tickFontSize);
 
         // inject wrappers into parent div
         target.style.display = 'flex';
@@ -78,6 +71,17 @@ export class heatmap {
         this.annotationcanvas.width = this.plot_width;
         this.annotationcanvas.height = this.plot_height;        
         plotWrapper.appendChild(this.annotationcanvas);
+
+        // decide on in-canvas sizes and scales
+        this.colorbarWidth = 70;
+        this.tickFontSize = 16;
+        this.axisTitleFontSize = 20;
+        this.markupcanvas.getContext('2d').font = `${this.tickFontSize}px sans-serif`;
+        let colorbarAnnotationEst = this.markupcanvas.getContext('2d').measureText('0.00e+00').width;
+        this.leftgutter = Math.max(this.plot_width*0.05, this.axisTitleFontSize + 4*this.tickFontSize);
+        this.topgutter = this.plot_height * 0.02;
+        this.rightgutter = colorbarAnnotationEst + this.colorbarWidth;
+        this.bottomgutter = Math.max(this.plot_height*0.05, this.axisTitleFontSize + 2*this.tickFontSize);
 
         // cursor reporting
         this.cursorreport = document.createElement('div');
@@ -221,7 +225,6 @@ export class heatmap {
         const xTickSpacing = (xEnd - ox) / this.nXbins;
         const yTickSpacing = (oy - yEnd) / this.nYbins;
     
-        ctx.font = '10px sans-serif';
         ctx.fillStyle = 'white';
         ctx.textAlign = 'center';
     
@@ -271,7 +274,7 @@ export class heatmap {
 
         // colorbar
         this.drawColorbar(this.markupcanvas, {
-            x: this.glslcanvas.width - this.colorbarWidth,
+            x: this.glslcanvas.width - 0.8*this.rightgutter,
             y: this.topgutter,
             width: 20,
             height: this.glslcanvas.height - this.topgutter - this.bottomgutter
@@ -620,7 +623,7 @@ export class heatmap {
             ctx.lineTo(x + width + 5, ty);
             ctx.stroke();
     
-            ctx.fillText((this.zmin + t*(this.zmax-this.zmin)).toFixed(2), x + width + 8, ty);
+            ctx.fillText((this.zmin + t*(this.zmax-this.zmin)).toExponential(2), x + width + 8, ty);
         }
     }
 
