@@ -26,17 +26,30 @@ demo feature notes
             polycallback: (polycoords)=>console.log(polycoords),
             xAxisTitle: 'demo x axis',
             yAxisTitle: 'demo y axis',
-            scale: 'log'
+            scale: 'linear',
         });
 
-        let data = [];
-        let dim = 1000
-        for (let i=0;i<dim;i++){
-            let row = [];
-            for (let j=0;j<dim;j++){
-                row.push(1000000*Math.random());
-            }
-            data.push(row);
+        // let data = [];
+        // let dim = 1000
+        // for (let i=0;i<dim;i++){
+        //     let row = [];
+        //     for (let j=0;j<dim;j++){
+        //         row.push(1000000*Math.random());
+        //     }
+        //     data.push(row);
+        // }
+
+        let data = {
+            xBins: 8192,
+            yBins: 8192,
+            x: [],
+            y: [],
+            z: []
+        }
+        for (let i = 0; i < 1000000; i++) {
+            data.x.push(Math.floor(Math.random() * 8192));
+            data.y.push(Math.floor(Math.random() * 8192));
+            data.z.push(Math.random());
         }
 
         hm.draw(data)

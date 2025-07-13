@@ -96,7 +96,7 @@ export class heatmap {
         this.scaleControl.value = options.scale || 'linear';
         this.scaleControl.addEventListener('change', () => {
             this.scale = this.scaleControl.value;
-            this.draw(this.data);
+            this.draw();
         });
         this.scale = this.scaleControl.value;
         sidebarWrapper.appendChild(this.scaleControl);
@@ -146,39 +146,81 @@ export class heatmap {
 
         this.xAxisTitle = options.xAxisTitle || '';
         this.yAxisTitle = options.yAxisTitle || '';
+
+        this.data = null;
+        this.instances = 0;
     }
     
-    draw(zvalues){
-        this.polyVertices_px = [];
-        this.vertexcontrol.innerHTML = '';
+    buildLookup(zvalues) {
+        this.sparseLookupTable = Object.create(null);
+        const xBins = zvalues.xBins;
+        for (let k = 0; k < zvalues.x.length; k++) {
+            const key = zvalues.y[k] * xBins + zvalues.x[k];
+            this.sparseLookupTable[key] = zvalues.z[k];
+        }
+    }
+
+    sparseLookup(x, y) {
+        return this.sparseLookupTable[y * this.data.xBins + x];
+    }
+
+    setData(zvalues) {
+        // manage ingesting new data.
+
         this.data = zvalues;
-        if(!this.dragStart || !this.dragEnd) {
+        if(zvalues.hasOwnProperty('xBins')){
+            // sparse mode, encoded as:
+            // {xBins: n, yBins: n, x: [x1, x2, ...], y: [y1, y2, ...], z: [z1, z2, ...]}
+
+            /// build sparse lookup index
+            this.buildLookup(zvalues);
+
+            this.nXbins = zvalues.xBins;
+            this.nYbins = zvalues.yBins;
+            this.xStart = 0
+            this.yStart = 0
+            this.instances = zvalues.x.length;
+        } else {
+            // dense mode, zvalues[i][j] is the z height of the i,jth bin.
+            this.sparseLookupTable = null;
+
             this.nXbins = zvalues[0].length;
             this.nYbins = zvalues.length;
             this.xStart = 0
             this.yStart = 0
+            this.instances = this.nXbins * this.nYbins;
+        } 
+    }
+
+    draw(zvalues){
+        // rerender the histogram
+        // if zvalues is null, just use the pre-existing data.
+        this.polyVertices_px = [];
+        this.vertexcontrol.innerHTML = '';
+        if(zvalues){
+            this.setData(zvalues);
         }
 
         this.setColorscaleLimits();
         const cellSize = [(this.glslcanvas.width-this.leftgutter-this.rightgutter)/this.nXbins, (this.glslcanvas.height-this.bottomgutter-this.topgutter)/this.nYbins];
         const resolution = [this.glslcanvas.width, this.glslcanvas.height];
-        const instances = this.nXbins * this.nYbins;
-        const offsets = new Float32Array(instances * 2);
-        const colors = new Float32Array(instances * 4);
-    
+        const offsets = new Float32Array(this.instances * 2);
+        const colors = new Float32Array(this.instances * 4);
+
         let index = 0
-        for (let row=this.yStart; row < this.yStart + this.nYbins ; row++) {
-            for (let col=this.xStart; col < this.xStart + this.nXbins; col++) {
+
+        if(this.sparseLookupTable){
+            for(let i=0; i<this.data.x.length; i++){
                 if(this.dragStart && this.dragEnd) {
                     const [startX, startY] = this.dragStart;
                     const [endX, endY] = this.dragEnd;
-                    if (col < startX || col > endX || row < startY || row > endY) {
+                    if (this.data.x[i] < startX || this.data.x[i] > endX || this.data.y[i] < startY || this.data.y[i] > endY) {
                         continue; // Skip this bin if it's outside the drag area
                     }
                 }
-                const x = this.leftgutter + (col-this.xStart+0.5) * cellSize[0];
-                const y = this.topgutter + (this.nYbins - (row - this.yStart) - 0.5) * cellSize[1];
-                let val = this.scale === 'linear' ? zvalues[row][col] : Math.log(zvalues[row][col]);
+                const x = this.leftgutter + (this.data.x[i]-this.xStart+0.5) * cellSize[0];
+                const y = this.topgutter + (this.nYbins - (this.data.y[i] - this.yStart) - 0.5) * cellSize[1];
+                let val = this.scale === 'linear' ? this.data.z[i] : Math.log(this.data.z[i]);
                 let color = this.viridisLUT[Math.floor((val - this.zmin) / (this.zmax - this.zmin) * (this.viridisLUT.length - 1))];
                 offsets[2*index] = x;
                 offsets[2*index + 1] = y;
@@ -186,7 +228,30 @@ export class heatmap {
                 colors[4*index + 1] = color[1];
                 colors[4*index + 2] = color[2];
                 colors[4*index + 3] = 1.0;
-                index++;    
+                index++;
+            }
+        } else {
+            for (let row=this.yStart; row < this.yStart + this.nYbins ; row++) {
+                for (let col=this.xStart; col < this.xStart + this.nXbins; col++) {
+                    if(this.dragStart && this.dragEnd) {
+                        const [startX, startY] = this.dragStart;
+                        const [endX, endY] = this.dragEnd;
+                        if (col < startX || col > endX || row < startY || row > endY) {
+                            continue; // Skip this bin if it's outside the drag area
+                        }
+                    }
+                    const x = this.leftgutter + (col-this.xStart+0.5) * cellSize[0];
+                    const y = this.topgutter + (this.nYbins - (row - this.yStart) - 0.5) * cellSize[1];
+                    let val = this.scale === 'linear' ? zvalues[row][col] : Math.log(zvalues[row][col]);
+                    let color = this.viridisLUT[Math.floor((val - this.zmin) / (this.zmax - this.zmin) * (this.viridisLUT.length - 1))];
+                    offsets[2*index] = x;
+                    offsets[2*index + 1] = y;
+                    colors[4*index] = color[0];
+                    colors[4*index + 1] = color[1];
+                    colors[4*index + 2] = color[2];
+                    colors[4*index + 3] = 1.0;
+                    index++;    
+                }
             }
         }
 
@@ -215,7 +280,7 @@ export class heatmap {
         // Draw
         gl.clearColor(0, 0.3, 0, 1);
         gl.clear(gl.COLOR_BUFFER_BIT);
-        gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, instances);  
+        gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.instances);  
 
         this.drawAxes();
     }
@@ -307,7 +372,12 @@ export class heatmap {
                 return
             }
             this.drawCursor(this.annotationcanvas, x, y);
-            let val = this.scale === 'linear' ? this.data[yBin][xBin] : Math.log(this.data[yBin][xBin]);
+            let val = null
+            if(this.sparseLookupTable){
+                val = this.scale === 'linear' ? this.sparseLookup(xBin, yBin) : Math.log(this.sparseLookup(xBin, yBin));
+            } else {
+                val = this.scale === 'linear' ? this.data[yBin][xBin] : Math.log(this.data[yBin][xBin]);
+            }
             this.cursorreport.innerHTML = `Cursor: (${xBin}, ${yBin}: ${val})`;
         }
     }
@@ -376,7 +446,7 @@ export class heatmap {
         this.nYbins = this.dragEnd[1] - this.dragStart[1];
         this.xStart = this.dragStart[0];
         this.yStart = this.dragStart[1];
-        this.draw(this.data)
+        this.draw()
     }
 
     onClick(e){
@@ -408,10 +478,19 @@ export class heatmap {
         this.dragStart_px = null;
         this.dragEnd = null;
         this.polyVertices_px = [];
+        if(this.data.hasOwnProperty('xBins')){
+            this.nXbins = this.data.xBins;
+            this.nYbins = this.data.yBins;
+        } else {
+            this.nXbins = this.data[0].length;
+            this.nYbins = this.data.length;
+        } 
+        this.xStart = 0
+        this.yStart = 0
         this.clearcanvas(this.annotationcanvas);
         this.clearcanvas(this.polycanvas);
         this.clearcanvas(this.markupcanvas);
-        this.draw(this.data);
+        this.draw();
     }
 
     pixel2binX(x){
@@ -641,29 +720,56 @@ export class heatmap {
         // find current z min and max
         this.zmin = Infinity;
         this.zmax = -Infinity;
-        for (let row=this.yStart; row < this.yStart + this.nYbins ; row++) {
-            for (let col=this.xStart; col < this.xStart + this.nXbins; col++) {
+        if(this.sparseLookupTable){
+            for (let i = 0; i < this.data.x.length; i++) {
                 if(this.dragStart && this.dragEnd) {
                     const [startX, startY] = this.dragStart;
                     const [endX, endY] = this.dragEnd;
-                    if (col < startX || col > endX || row < startY || row > endY) {
+                    if (this.data.x[i] < startX || this.data.x[i] > endX || this.data.y[i] < startY || this.data.y[i] > endY) {
                         continue; // Skip this bin if it's outside the drag area
                     }
                 }
-                if(this.scale == 'linear'){
-                    if (this.data[row][col] == null) continue;
-                    if (this.data[row][col] < this.zmin) this.zmin = this.data[row][col];
-                    if (this.data[row][col] > this.zmax) this.zmax = this.data[row][col];
-                } else if(this.scale == 'log'){
-                    if (this.data[row][col] <= 0){
+                if (this.scale == 'linear') {
+                    if (this.data.z[i] == null) continue;
+                    if (this.data.z[i] < this.zmin) this.zmin = this.data.z[i];
+                    if (this.data.z[i] > this.zmax) this.zmax = this.data.z[i];
+                } else if (this.scale == 'log') {
+                    if (this.data.z[i] <= 0) {
                         // bounce back to linear
                         this.scale = 'linear';
                         this.scaleControl.value = 'linear';
-                        this.draw(this.data);
+                        this.draw();
                     }
-                    if (this.data[row][col] == null) continue;
-                    if (Math.log(this.data[row][col]) < this.zmin) this.zmin = Math.log(this.data[row][col]);
-                    if (Math.log(this.data[row][col]) > this.zmax) this.zmax = Math.log(this.data[row][col]);
+                    if (this.data.z[i] == null) continue;
+                    if (Math.log(this.data.z[i]) < this.zmin) this.zmin = Math.log(this.data.z[i]);
+                    if (Math.log(this.data.z[i]) > this.zmax) this.zmax = Math.log(this.data.z[i]);
+                }
+            }
+        } else {
+            for (let row=this.yStart; row < this.yStart + this.nYbins ; row++) {
+                for (let col=this.xStart; col < this.xStart + this.nXbins; col++) {
+                    if(this.dragStart && this.dragEnd) {
+                        const [startX, startY] = this.dragStart;
+                        const [endX, endY] = this.dragEnd;
+                        if (col < startX || col > endX || row < startY || row > endY) {
+                            continue; // Skip this bin if it's outside the drag area
+                        }
+                    }
+                    if(this.scale == 'linear'){
+                        if (this.data[row][col] == null) continue;
+                        if (this.data[row][col] < this.zmin) this.zmin = this.data[row][col];
+                        if (this.data[row][col] > this.zmax) this.zmax = this.data[row][col];
+                    } else if(this.scale == 'log'){
+                        if (this.data[row][col] <= 0){
+                            // bounce back to linear
+                            this.scale = 'linear';
+                            this.scaleControl.value = 'linear';
+                            this.draw();
+                        }
+                        if (this.data[row][col] == null) continue;
+                        if (Math.log(this.data[row][col]) < this.zmin) this.zmin = Math.log(this.data[row][col]);
+                        if (Math.log(this.data[row][col]) > this.zmax) this.zmax = Math.log(this.data[row][col]);
+                    }
                 }
             }
         }
