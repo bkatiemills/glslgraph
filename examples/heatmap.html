@@ -17,10 +17,8 @@ demo feature notes
 
     <div id="heatmaptarget"></div>
 
-
-
     <script type="module">
-        import { heatmap } from './scripts/heatmap.js';
+        import { heatmap } from '../scripts/heatmap.js';
         const hm = new heatmap("heatmaptarget", {
             polycallback: (polycoords)=>console.log(polycoords),
             xAxisTitle: 'demo x axis',

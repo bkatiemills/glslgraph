@@ -4,7 +4,7 @@ This package provides some lightweight plotting tools that leverage GLSL shaders
 
 ## heatmap
 
-Example: [examples/heatmap.js](https://bkatiemills.github.io/glslgraph/examples.heatmap.js)
+Example: [examples/heatmap.html](https://bkatiemills.github.io/glslgraph/examples/heatmap.html)
 
 `heatmap` provides 2D histogram plotting with a number of auxiliary features.
 
