@@ -90,7 +90,7 @@ export class heatmap {
 
         // cursor reporting
         this.cursorreport = document.createElement('div');
-        this.cursorreport.style.minHeight = '1em';
+        this.cursorreport.style.minHeight = '2em';
         sidebarWrapper.appendChild(this.cursorreport);
 
         // lin/log control
