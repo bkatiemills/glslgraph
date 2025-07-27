@@ -46,3 +46,22 @@ The `heatmap` constructor accepts an optional configuration object that supports
  - `width`: (integer, px) sets the width of the plot area. Overrides all other plot width determining logic.
  - `xAxisTitle`: (string) title for the horizontal axis.
  - `yAxisTitle`: (string) title for the vertical axis.
+
+### Member methods and variables
+
+Heatmap objects contain numerous member variables and methods; below we highlight only the ones intended for consumption by the user. 
+
+#### Methods
+
+- `.addPolyVertex(x,y)`: `x` and `y` are the bins to add a polygon vertex at.
+- `.draw(data)`: `data` is either a dense or sparse packed data object, described above, and can be omitted if `.setData(data)` has been called on this dataset previously. Triggers a redraw of the heatmap, following the parameters previously set.
+- `.setData(data)`: `data` is either a dense or sparse packed data object, described above. This method parses this object in preparation for plotting; it is not strictly necessary for the user to call this (see `.draw(data)`), but for large sparse data arrays that need to be traversed once on load, it can be advantageous to call this in the background as soon as possible in situations where the user must make additional choices before `.draw()` is called; that way the traversal is complete by the time `.draw()` is called and doesn't create perceived lag for the user.
+- `.zoomX(min, max)` / `.zoomY(min, max)`: programatically zoom to the specified min and max bins for the X or Y axis. User will still have to call `.draw()` to actually render the zoomed view.
+- `.zoomout()`: reset the X and Y zooms to their largest extent.
+
+#### Variables
+
+The user is warned that these member variables of the heatmap object are meant to be treated as read-only by the user; see the methods section above for programatically manupulating heatmap objects.
+
+- `current[X|Y]axis[Min|Max]Value`: the bin value of the current [min|max] of the [x|y] axis, as currently displayed.
+- `data`: a dense or sparse data object set by `.setData(data)` or `.draw()`.

@@ -216,8 +216,13 @@ export class heatmap {
 
             this.nXbins = zvalues.xBins;
             this.nYbins = zvalues.yBins;
-            this.xStart = 0
-            this.yStart = 0
+            this.currentXaxisMinValue = 0
+            this.currentYaxisMinValue = 0
+            this.currentXaxisMaxValue = zvalues.x.reduce((a, b) => Math.max(a, b), -Infinity);
+            this.currentYaxisMaxValue = zvalues.y.reduce((a, b) => Math.max(a, b), -Infinity);
+            this.xglobalEnd = this.currentXaxisMaxValue;
+            this.yglobalEnd = this.currentYaxisMaxValue;
+
             this.instances = zvalues.x.length;
         } else {
             // dense mode, zvalues[i][j] is the z height of the i,jth bin.
@@ -225,17 +230,21 @@ export class heatmap {
 
             this.nXbins = zvalues[0].length;
             this.nYbins = zvalues.length;
-            this.xStart = 0
-            this.yStart = 0
+            this.currentXaxisMinValue = 0
+            this.currentYaxisMinValue = 0
+            this.currentXaxisMaxValue = this.nXbins - 1;
+            this.currentYaxisMaxValue = this.nYbins - 1;
+            this.xglobalEnd = this.currentXaxisMaxValue;
+            this.yglobalEnd = this.currentYaxisMaxValue;
             this.instances = this.nXbins * this.nYbins;
         } 
     }
 
     draw(zvalues){
+        
         // rerender the histogram
         // if zvalues is null, just use the pre-existing data.
-        this.polyVertices_px = [];
-        this.vertexcontrol.innerHTML = '';
+
         if(zvalues){
             this.setData(zvalues);
         }
@@ -257,8 +266,8 @@ export class heatmap {
                         continue; // Skip this bin if it's outside the drag area
                     }
                 }
-                const x = this.leftgutter + (this.data.x[i]-this.xStart+0.5) * cellSize[0];
-                const y = this.topgutter + (this.nYbins - (this.data.y[i] - this.yStart) - 0.5) * cellSize[1];
+                const x = this.leftgutter + (this.data.x[i]-this.currentXaxisMinValue+0.5) * cellSize[0];
+                const y = this.topgutter + (this.nYbins - (this.data.y[i] - this.currentYaxisMinValue) - 0.5) * cellSize[1];
                 let val = this.scale === 'linear' ? this.data.z[i] : Math.log(this.data.z[i]);
                 if(val === -Infinity) continue
                 let color = this.colorscaleLUT[Math.floor((val - this.zmin) / (this.zmax - this.zmin) * (this.colorscaleLUT.length - 1))];
@@ -271,8 +280,8 @@ export class heatmap {
                 index++;
             }
         } else {
-            for (let row=this.yStart; row < this.yStart + this.nYbins ; row++) {
-                for (let col=this.xStart; col < this.xStart + this.nXbins; col++) {
+            for (let row=this.currentYaxisMinValue; row < this.currentYaxisMinValue + this.nYbins ; row++) {
+                for (let col=this.currentXaxisMinValue; col < this.currentXaxisMinValue + this.nXbins; col++) {
                     if(this.dragStart && this.dragEnd) {
                         const [startX, startY] = this.dragStart;
                         const [endX, endY] = this.dragEnd;
@@ -280,8 +289,8 @@ export class heatmap {
                             continue; // Skip this bin if it's outside the drag area
                         }
                     }
-                    const x = this.leftgutter + (col-this.xStart+0.5) * cellSize[0];
-                    const y = this.topgutter + (this.nYbins - (row - this.yStart) - 0.5) * cellSize[1];
+                    const x = this.leftgutter + (col-this.currentXaxisMinValue+0.5) * cellSize[0];
+                    const y = this.topgutter + (this.nYbins - (row - this.currentYaxisMinValue) - 0.5) * cellSize[1];
                     let val = this.scale === 'linear' ? this.data[row][col] : Math.log(this.data[row][col]);
                     if(val === -Infinity) continue
                     let color = this.colorscaleLUT[Math.floor((val - this.zmin) / (this.zmax - this.zmin) * (this.colorscaleLUT.length - 1))];
@@ -375,7 +384,7 @@ export class heatmap {
             ctx.stroke();
         
             if (i % xlabelEvery === 0) {
-                ctx.fillText(i+this.xStart, x, oy + this.tickFontSize + 3);
+                ctx.fillText(i+this.currentXaxisMinValue, x, oy + this.tickFontSize + 3);
             }
         }
     
@@ -390,7 +399,7 @@ export class heatmap {
             ctx.stroke();
         
             if (i % ylabelEvery === 0) {
-                ctx.fillText(i+this.yStart, ox - 6, y + 3);
+                ctx.fillText(i+this.currentYaxisMinValue, ox - 6, y + 3);
             }
         }
 
@@ -528,13 +537,36 @@ export class heatmap {
         let right = Math.max(start[0], end[0]);
         let bottom = Math.min(start[1], end[1]);
         let top = Math.max(start[1], end[1]);
-        this.dragStart = [left, bottom]; 
-        this.dragEnd = [right, top];
-        this.nXbins = this.dragEnd[0] - this.dragStart[0];
-        this.nYbins = this.dragEnd[1] - this.dragStart[1];
-        this.xStart = this.dragStart[0];
-        this.yStart = this.dragStart[1];
+        this.zoomX(left, right);
+        this.zoomY(bottom, top);
+        
         this.draw()
+    }
+
+    zoomX(start, end) {
+        // zoom in on the x-axis
+        this.polyVertices_px = [];
+        this.vertexcontrol.innerHTML = '';
+
+        this.dragStart = [start, this.currentYaxisMinValue];
+        this.dragEnd = [end, this.currentYaxisMaxValue];
+        this.nXbins = end - start;
+        this.currentXaxisMinValue = start;
+        this.currentXaxisMaxValue = end;
+        //this.draw();
+    }
+
+    zoomY(start, end) {
+        // zoom in on the y-axis
+        this.polyVertices_px = [];
+        this.vertexcontrol.innerHTML = '';
+
+        this.dragStart = [this.currentXaxisMinValue, start];
+        this.dragEnd = [this.currentXaxisMaxValue, end];
+        this.nYbins = end - start;
+        this.currentYaxisMinValue = start;
+        this.currentYaxisMaxValue = end;
+        //this.draw();
     }
 
     onClick(e){
@@ -549,13 +581,18 @@ export class heatmap {
                     const rect = this.polycanvas.getBoundingClientRect();
                     const x = Math.floor(e.clientX - rect.left);
                     const y = Math.floor(e.clientY - rect.top);
-                    this.polyVertices_px.push([x, y]);
-                    this.manageVertexControl();
-                    this.renderPoly(this.polycanvas);
+                    this.addPolyVertex(this.pixel2binX(x), this.pixel2binY(y));
                     this.clickTimer = [];
                 }, 250)
             )
         }
+    }
+
+    addPolyVertex(x, y) {
+        // add a vertex to the polygon at bin x, y
+        this.polyVertices_px.push(this.bin2pixel(x, y));
+        this.manageVertexControl();
+        this.renderPoly(this.polycanvas);
     }
 
     onDblClick(e) {
@@ -567,9 +604,12 @@ export class heatmap {
         this.mouseUpTimer.map(clearTimeout);
         this.clickTimer.map(clearTimeout);
         this.zoomout()
+        this.draw()
     }
     
     zoomout(){
+        this.polyVertices_px = [];
+        this.vertexcontrol.innerHTML = '';
         this.dragStart = null;
         this.dragStart_px = null;
         this.dragEnd = null;
@@ -581,22 +621,23 @@ export class heatmap {
             this.nXbins = this.data[0].length;
             this.nYbins = this.data.length;
         } 
-        this.xStart = 0
-        this.yStart = 0
+        this.currentXaxisMinValue = 0
+        this.currentYaxisMinValue = 0
+        this.currentXaxisMaxValue = this.xglobalEnd;
+        this.currentYaxisMaxValue = this.yglobalEnd;
         this.clearcanvas(this.annotationcanvas);
         this.clearcanvas(this.polycanvas);
         this.clearcanvas(this.markupcanvas);
-        this.draw();
     }
 
     pixel2binX(x){
         const xBin = Math.floor((x - this.leftgutter) / ((this.glslcanvas.width - this.leftgutter - this.rightgutter) / this.nXbins));
-        return xBin + this.xStart;
+        return xBin + this.currentXaxisMinValue;
     }
 
     pixel2binY(y){
         const yBin = Math.floor((this.glslcanvas.height - this.bottomgutter - y) / ((this.glslcanvas.height - this.topgutter - this.bottomgutter) / this.nYbins));
-        return yBin + this.yStart;
+        return yBin + this.currentYaxisMinValue;
     }
 
     pixel2bin(x, y) {
@@ -604,11 +645,11 @@ export class heatmap {
     }
 
     bin2pixelX(xBin) {
-        return this.leftgutter + (xBin-this.xStart + 0.5) * ((this.glslcanvas.width - this.leftgutter - this.rightgutter) / this.nXbins);
+        return this.leftgutter + (xBin-this.currentXaxisMinValue + 0.5) * ((this.glslcanvas.width - this.leftgutter - this.rightgutter) / this.nXbins);
     }
 
     bin2pixelY(yBin) {
-        return this.glslcanvas.height - this.bottomgutter - (yBin-this.yStart + 0.5) * ((this.glslcanvas.height - this.topgutter - this.bottomgutter) / this.nYbins);
+        return this.glslcanvas.height - this.bottomgutter - (yBin-this.currentYaxisMinValue + 0.5) * ((this.glslcanvas.height - this.topgutter - this.bottomgutter) / this.nYbins);
     }
 
     bin2pixel(x,y){
@@ -860,8 +901,8 @@ export class heatmap {
                 }
             }
         } else {
-            for (let row=this.yStart; row < this.yStart + this.nYbins ; row++) {
-                for (let col=this.xStart; col < this.xStart + this.nXbins; col++) {
+            for (let row=this.currentYaxisMinValue; row < this.currentYaxisMinValue + this.nYbins ; row++) {
+                for (let col=this.currentXaxisMinValue; col < this.currentXaxisMinValue + this.nXbins; col++) {
                     if(this.dragStart && this.dragEnd) {
                         const [startX, startY] = this.dragStart;
                         const [endX, endY] = this.dragEnd;
