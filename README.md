@@ -64,4 +64,4 @@ Heatmap objects contain numerous member variables and methods; below we highligh
 The user is warned that these member variables of the heatmap object are meant to be treated as read-only by the user; see the methods section above for programatically manupulating heatmap objects.
 
 - `current[X|Y]axis[Min|Max]Value`: the bin value of the current [min|max] of the [x|y] axis, as currently displayed.
-- `data`: a dense or sparse data object set by `.setData(data)` or `.draw()`.
+- `data`: a dense or sparse data object set by `.setData(data)` or `.draw(data)`.
