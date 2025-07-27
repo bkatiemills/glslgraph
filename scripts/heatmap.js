@@ -90,6 +90,7 @@ export class heatmap {
 
         // cursor reporting
         this.cursorreport = document.createElement('div');
+        this.cursorreport.style.minHeight = '1em';
         sidebarWrapper.appendChild(this.cursorreport);
 
         // lin/log control
@@ -415,6 +416,10 @@ export class heatmap {
     }
     
     onMouseMove(e) {
+        if(this.data === null) {
+            return
+        }
+
         const rect = this.annotationcanvas.getBoundingClientRect();
         const x = Math.floor(e.clientX - rect.left);
         const y = Math.floor(e.clientY - rect.top);
@@ -436,6 +441,9 @@ export class heatmap {
                 val = this.scale === 'linear' ? this.sparseLookup(xBin, yBin) : Math.log(this.sparseLookup(xBin, yBin));
             } else {
                 val = this.scale === 'linear' ? this.data[yBin][xBin] : Math.log(this.data[yBin][xBin]);
+            }
+            if(val === undefined){
+                val = 0
             }
             this.cursorreport.innerHTML = `Cursor: (${xBin}, ${yBin}: ${val})`;
         }
@@ -461,6 +469,10 @@ export class heatmap {
     }
 
     onMouseDown(e) {
+        if(this.data === null) {
+            return
+        }
+
         this.mouseDownTimer.push(setTimeout(() => {
                 const rect = this.annotationcanvas.getBoundingClientRect();
                 const x = Math.floor(e.clientX - rect.left);
@@ -475,6 +487,10 @@ export class heatmap {
     }
       
     onMouseUp(e) {
+        if(this.data === null) {
+            return
+        }
+
         this.mouseUpTimer.push(setTimeout(() => {
                 const rect = this.annotationcanvas.getBoundingClientRect();
                 const x = Math.floor(e.clientX - rect.left);
@@ -494,6 +510,10 @@ export class heatmap {
     }
 
     onMouseOut(e){
+        if(this.data === null) {
+            return
+        }
+
         this.cursorreport.innerHTML = '';
         if(!this.dragInProgress){
             return
@@ -518,6 +538,10 @@ export class heatmap {
     }
 
     onClick(e){
+        if(this.data === null) {
+            return
+        }
+
         if(!this.dragInProgress){
             this.mouseDownTimer.map(clearTimeout);
             this.mouseUpTimer.map(clearTimeout);
@@ -535,6 +559,10 @@ export class heatmap {
     }
 
     onDblClick(e) {
+        if(this.data === null) {
+            return
+        }
+
         this.mouseDownTimer.map(clearTimeout);
         this.mouseUpTimer.map(clearTimeout);
         this.clickTimer.map(clearTimeout);
