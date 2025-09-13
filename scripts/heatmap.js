@@ -87,7 +87,7 @@ export class heatmap {
 
         // cursor reporting
         this.cursorreport = document.createElement('div');
-        this.cursorreport.style.minHeight = '2em';
+        this.cursorreport.textContent = 'Cursor: -';
         controlTarget.appendChild(this.cursorreport);
 
         // lin/log control
@@ -524,7 +524,7 @@ export class heatmap {
             return
         }
 
-        this.cursorreport.innerHTML = '';
+        this.cursorreport.innerHTML = 'Cursor: -';
         if(!this.dragInProgress){
             return
         }
