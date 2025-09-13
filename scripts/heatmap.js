@@ -434,10 +434,21 @@ export class heatmap {
         const y = Math.floor(e.clientY - rect.top);
         const [xBin, yBin] = this.pixel2bin(x, y);
 
+        let val = null
+        if(this.sparseLookupTable){
+            val = this.scale === 'linear' ? this.sparseLookup(xBin, yBin) : Math.log(this.sparseLookup(xBin, yBin));
+        } else {
+            val = this.scale === 'linear' ? this.data[yBin][xBin] : Math.log(this.data[yBin][xBin]);
+        }
+        if(val === undefined){
+            val = 0
+        }
+
         if (this.dragInProgress) {
             // dragging: selecting a zoom region
             this.clearcanvas(this.annotationcanvas)
             this.boxdraw(this.annotationcanvas, this.dragStart_px, [x, y]);
+            this.cursorreport.innerHTML = `Cursor: (${xBin}, ${yBin}: ${val})`;
         } else {
             // not dragging: cursors
             this.clearcanvas(this.annotationcanvas)
@@ -445,15 +456,7 @@ export class heatmap {
                 return
             }
             this.drawCursor(this.annotationcanvas, x, y);
-            let val = null
-            if(this.sparseLookupTable){
-                val = this.scale === 'linear' ? this.sparseLookup(xBin, yBin) : Math.log(this.sparseLookup(xBin, yBin));
-            } else {
-                val = this.scale === 'linear' ? this.data[yBin][xBin] : Math.log(this.data[yBin][xBin]);
-            }
-            if(val === undefined){
-                val = 0
-            }
+
             this.cursorreport.innerHTML = `Cursor: (${xBin}, ${yBin}: ${val})`;
         }
     }
