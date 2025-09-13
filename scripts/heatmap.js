@@ -191,16 +191,12 @@ export class heatmap {
     }
 
     buildLookup(zvalues) {
-        this.sparseLookupTable = Object.create(null);
-        const xBins = zvalues.xBins;
+        let sparseLookupTable = Array.from({ length: zvalues.yBins }, () => []);
         for (let k = 0; k < zvalues.x.length; k++) {
-            const key = zvalues.y[k] * xBins + zvalues.x[k];
-            this.sparseLookupTable[key] = zvalues.z[k];
+            sparseLookupTable[zvalues.y[k]][zvalues.x[k]] = zvalues.z[k];
         }
-    }
 
-    sparseLookup(x, y) {
-        return this.sparseLookupTable[y * this.data.xBins + x];
+        return sparseLookupTable
     }
 
     setData(zvalues) {
@@ -212,7 +208,7 @@ export class heatmap {
             // {xBins: n, yBins: n, x: [x1, x2, ...], y: [y1, y2, ...], z: [z1, z2, ...]}
 
             /// build sparse lookup index
-            this.buildLookup(zvalues);
+            this.sparseLookupTable = this.buildLookup(zvalues);
 
             this.nXbins = zvalues.xBins;
             this.nYbins = zvalues.yBins;
@@ -435,13 +431,18 @@ export class heatmap {
         const [xBin, yBin] = this.pixel2bin(x, y);
 
         let val = null
-        if(this.sparseLookupTable){
-            val = this.scale === 'linear' ? this.sparseLookup(xBin, yBin) : Math.log(this.sparseLookup(xBin, yBin));
-        } else {
-            val = this.scale === 'linear' ? this.data[yBin][xBin] : Math.log(this.data[yBin][xBin]);
-        }
-        if(val === undefined){
-            val = 0
+        if(xBin < this.currentXaxisMinValue || xBin >= this.currentXaxisMaxValue ||
+           yBin < this.currentYaxisMinValue || yBin >= this.currentYaxisMaxValue) {
+            this.cursorreport.innerHTML = `Cursor: -`;
+        } else{
+            if(this.sparseLookupTable){
+                val = this.scale === 'linear' ? this.sparseLookupTable[yBin][xBin] : Math.log(this.sparseLookupTable[yBin][xBin]);
+            } else {
+                val = this.scale === 'linear' ? this.data[yBin][xBin] : Math.log(this.data[yBin][xBin]);
+            }
+            if(val === undefined){
+                val = 0
+            }
         }
 
         if (this.dragInProgress) {
