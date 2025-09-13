@@ -81,7 +81,7 @@ export class heatmap {
         this.markupcanvas.getContext('2d').font = `${this.tickFontSize}px sans-serif`;
         let colorbarAnnotationEst = this.markupcanvas.getContext('2d').measureText('0.00e+00').width;
         this.leftgutter = Math.max(this.plot_width*0.05, this.axisTitleFontSize + 4*this.tickFontSize);
-        this.topgutter = this.plot_height * 0.02;
+        this.topgutter = this.plot_height * 0.04;
         this.rightgutter = colorbarAnnotationEst + this.colorbarWidth;
         this.bottomgutter = Math.max(this.plot_height*0.05, this.axisTitleFontSize + 2*this.tickFontSize);
 
