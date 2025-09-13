@@ -1,10 +1,15 @@
 import * as glsl_helpers from './glsl_helpers.js';
 
 export class heatmap {
-    constructor(divId, options = {}) {
-        const target = document.getElementById(divId);
+    constructor(canvasDivId, controlDivId, options = {}) {
+        const target = document.getElementById(canvasDivId);
         if (!target) {
-            throw new Error(`No element found with ID "${divId}"`);
+            throw new Error(`No element found with ID "${canvasDivId}"`);
+        }
+
+        const controlTarget = document.getElementById(controlDivId);
+        if (!controlTarget) {
+            throw new Error(`No element found with ID "${controlDivId}"`);
         }
 
         // some general options
@@ -14,35 +19,27 @@ export class heatmap {
 
         // decide on DOM sizes and scales
         let target_size = target.getBoundingClientRect();
-        let sidebar_width = 400
-        /// 1st precedence: options.[width, height] sets the plot size; 
-        /// 2nd precendence: a target div's pre-defined size should bound the plot + sidebar
-        /// 3rd precedence: the plot should fill the window, minus the sidebar
+        /// 1st precedence: options.<width, height> sets the plot size; 
+        /// 2nd precendence: a target div's pre-defined size should bound the plot
+        /// 3rd precedence: the plot should fill the window
         if(options.width){
             this.plot_width = options.width;
+            target.style.width = `${this.plot_width}px`;
         } else if(target_size.width) {
-            this.plot_width = target_size.width - sidebar_width;
+            this.plot_width = target_size.width;
         } else {
-            this.plot_width = window.innerWidth - sidebar_width;
+            this.plot_width = window.innerWidth;
+            target.style.width = `${this.plot_width}px`;
         }
         if(options.height){
             this.plot_height = options.height;
+            target.style.height = `${this.plot_height}px`;
         } else if(target_size.height) {
             this.plot_height = target_size.height;
         } else {
             this.plot_height = window.innerHeight;
+            target.style.height = `${this.plot_height}px`;
         }
-
-        // inject wrappers into parent div
-        target.style.display = 'flex';
-        const plotWrapper = document.createElement('div');
-        plotWrapper.style.width = `${this.plot_width}px`;
-        plotWrapper.style.height = `${this.plot_height}px`;
-        const sidebarWrapper = document.createElement('div');
-        sidebarWrapper.style.width = `${sidebar_width}px`;
-        sidebarWrapper.style.height = `${this.plot_height}px`;
-        target.appendChild(plotWrapper);
-        target.appendChild(sidebarWrapper);
 
         // set up canvas stack
         /// glsl target canvas 
@@ -51,7 +48,7 @@ export class heatmap {
         this.glslcanvas.style.zIndex = 0;
         this.glslcanvas.width = this.plot_width //options.width || 512+this.colorbarWidth;
         this.glslcanvas.height = this.plot_height //options.height || 512;
-        plotWrapper.appendChild(this.glslcanvas);
+        target.appendChild(this.glslcanvas);
 
         /// markup canvas - scales, titles
         this.markupcanvas = document.createElement('canvas');
@@ -59,7 +56,7 @@ export class heatmap {
         this.markupcanvas.style.zIndex = 1;
         this.markupcanvas.width = this.plot_width;
         this.markupcanvas.height = this.plot_height;
-        plotWrapper.appendChild(this.markupcanvas);
+        target.appendChild(this.markupcanvas);
 
         /// polygon canvas
         this.polycanvas = document.createElement('canvas');
@@ -67,7 +64,7 @@ export class heatmap {
         this.polycanvas.style.zIndex = 2;
         this.polycanvas.width = this.plot_width;
         this.polycanvas.height = this.plot_height;
-        plotWrapper.appendChild(this.polycanvas);
+        target.appendChild(this.polycanvas);
 
         /// annotation canvas - top layer for annotations as well as mouse interactions
         this.annotationcanvas = document.createElement('canvas');
@@ -75,7 +72,7 @@ export class heatmap {
         this.annotationcanvas.style.zIndex = 3;
         this.annotationcanvas.width = this.plot_width;
         this.annotationcanvas.height = this.plot_height;        
-        plotWrapper.appendChild(this.annotationcanvas);
+        target.appendChild(this.annotationcanvas);
 
         // decide on in-canvas sizes and scales
         this.colorbarWidth = 70;
@@ -91,14 +88,14 @@ export class heatmap {
         // cursor reporting
         this.cursorreport = document.createElement('div');
         this.cursorreport.style.minHeight = '2em';
-        sidebarWrapper.appendChild(this.cursorreport);
+        controlTarget.appendChild(this.cursorreport);
 
         // lin/log control
         this.scaleControlLabel = document.createElement('label');
         this.scaleControlLabel.textContent = 'Scale: ';
         this.scaleControlLabel.style.marginRight = '10px';
         this.scaleControlLabel.style.display = 'block';
-        sidebarWrapper.appendChild(this.scaleControlLabel);
+        controlTarget.appendChild(this.scaleControlLabel);
         this.scaleControl = document.createElement('select');
         this.scaleControl.innerHTML = `
             <option value="linear">Linear</option>
@@ -110,14 +107,14 @@ export class heatmap {
             this.draw();
         });
         this.scale = this.scaleControl.value;
-        sidebarWrapper.appendChild(this.scaleControl);
+        controlTarget.appendChild(this.scaleControl);
 
         // color scale control
         this.colorscaleControlLabel = document.createElement('label');
         this.colorscaleControlLabel.textContent = 'Colorscale: ';
         this.colorscaleControlLabel.style.marginRight = '10px';
         this.colorscaleControlLabel.style.display = 'block';
-        sidebarWrapper.appendChild(this.colorscaleControlLabel);
+        controlTarget.appendChild(this.colorscaleControlLabel);
         this.colorscaleControl = document.createElement('select');
         this.colorscaleControl.innerHTML = `
             <option value="viridis">Viridis</option>
@@ -129,12 +126,12 @@ export class heatmap {
             this.draw();
         });
         this.manageColorscale();
-        sidebarWrapper.appendChild(this.colorscaleControl);
+        controlTarget.appendChild(this.colorscaleControl);
 
 
         /// vertex control div
         this.vertexcontrol = document.createElement('div');
-        sidebarWrapper.appendChild(this.vertexcontrol);
+        controlTarget.appendChild(this.vertexcontrol);
 
         // click-drag-release
         this.dragStart = null;

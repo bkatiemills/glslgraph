@@ -10,7 +10,7 @@ Example: [examples/heatmap.html](https://bkatiemills.github.io/glslgraph/example
 
 ### usage notes
 
- - Create a new heatmap by providing the ID of a pre-existing div to populate, and an object describing configuration options: `new heatmap("target_div_id", config_object)`. Options are enumerated below.
+ - Create a new heatmap by providing the ID of a pre-existing divs to populate (one for the plot, one for the control sidebar), and an object describing configuration options: `new heatmap("target_div_id", config_object)`. Options are enumerated below.
  - Data for the heatmap can be encoded in a _dense_ or _sparse_ format:
    - _dense format_: 2D array `data` where `data[i][j]` contains the z value for the ijth bin.
    - _sparse format_: object with the following schema:
@@ -25,8 +25,8 @@ Example: [examples/heatmap.html](https://bkatiemills.github.io/glslgraph/example
      ``` 
  - Plot sizing is determined in decending order of priority:
    - if the config object passed to the constructor has property `width` or `height`, this will be used as the `width` and `height` of the plot area, respectively
-   - if the div passed to the constructor has `width` or `height` properties set, these dimensions will contain both the plot and accompanying control sidebar.
-   - failing the above, the plot plot control sidebar will fill the screen.
+   - if the div passed to the constructor for the plot areas has `width` or `height` properties set, these dimensions will bound the plot.
+   - failing the above, the plot will fill the screen.
  - Default plot interactions:
    - click and drag to zoom
    - double click to zoom out
