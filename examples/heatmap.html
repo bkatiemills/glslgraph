@@ -15,18 +15,21 @@ demo feature notes
 - figure is 8192x8192 sparse histogram with 1M random points
     </pre>
 
-    <div id="heatmaptarget"></div>
+    <div style="display:inline-block" id="heatmaptarget"></div>
+    <div style="display:inline-block; vertical-align: top;" id="controltarget"></div>
 
     <script type="module">
-        import { heatmap } from '../scripts/heatmap.js';
-        const hm = new heatmap("heatmaptarget", {
+        import { heatmap } from './scripts/heatmap.js';
+        const hm = new heatmap("heatmaptarget", "controltarget", {
             polycallback: (polycoords)=>console.log(polycoords),
             xAxisTitle: 'demo x axis',
             yAxisTitle: 'demo y axis',
             scale: 'linear',
             bkgColor: '#333333',
             textColor: '#ffffff',
-            annotationColor: '#ffffff'
+            annotationColor: '#ffffff',
+            width: window.innerWidth * 0.8,
+            height: window.innerHeight * 0.8
         });
 
         // let data = [];
@@ -55,8 +58,7 @@ demo feature notes
             data.z.push(Math.random());
         }
 
-        hm.setData(data);
-        hm.draw()
+        hm.draw(data)
 
       </script>
 </body>
