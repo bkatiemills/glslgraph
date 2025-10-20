@@ -367,6 +367,10 @@ export class heatmap {
         const tickLength = 4;
         
         // X ticks
+        ctx.beginPath();
+        ctx.moveTo(ox, oy);
+        ctx.lineTo(xEnd, oy);
+        ctx.stroke();
         const xlabelEvery = Math.floor(this.nXbins / Math.min(10, this.nXbins));
         ctx.font = `${this.tickFontSize}px sans-serif`;
         for (let i = 0; i <= this.nXbins; i++) {
@@ -382,13 +386,17 @@ export class heatmap {
         }
     
         // Y ticks
+        ctx.beginPath();
+        ctx.moveTo(ox, oy);
+        ctx.lineTo(ox, yEnd);
+        ctx.stroke();
         ctx.textAlign = 'right';
         const ylabelEvery = Math.floor(this.nYbins / Math.min(10, this.nYbins));
         for (let i = 0; i <= this.nYbins; i++) {
             const y = oy - i * yTickSpacing;
             ctx.beginPath();
-            ctx.moveTo(ox, oy);
-            ctx.lineTo(ox, yEnd);
+            ctx.moveTo(ox, y);
+            ctx.lineTo(ox - tickLength, y);
             ctx.stroke();
         
             if (i % ylabelEvery === 0) {
