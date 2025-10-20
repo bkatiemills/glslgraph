@@ -534,10 +534,10 @@ export class heatmap {
 
     onDragComplete(start, end) {
         // set everything for zooming in
-        let left = Math.min(start[0], end[0]);
-        let right = Math.max(start[0], end[0]);
-        let bottom = Math.min(start[1], end[1]);
-        let top = Math.max(start[1], end[1]);
+        let left = Math.max(0,Math.min(start[0], end[0]));
+        let right = Math.min(this.xglobalEnd, Math.max(start[0], end[0]));
+        let bottom = Math.max(0,Math.min(start[1], end[1]));
+        let top = Math.min(this.yglobalEnd, Math.max(start[1], end[1]));
         this.zoomX(left, right);
         this.zoomY(bottom, top);
         
