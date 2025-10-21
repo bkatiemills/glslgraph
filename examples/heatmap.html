@@ -22,6 +22,7 @@ demo feature notes
         import { heatmap } from '../scripts/heatmap.js';
         const hm = new heatmap("heatmaptarget", "controltarget", {
             polycallback: (polycoords)=>console.log(polycoords),
+            plotTitle: 'Demo Heatmap',
             xAxisTitle: 'demo x axis',
             yAxisTitle: 'demo y axis',
             scale: 'linear',
@@ -32,31 +33,31 @@ demo feature notes
             height: window.innerHeight * 0.7
         });
 
-        // let data = [];
-        // let dim = 1000
-        // for (let i=0;i<dim;i++){
-        //     let row = [];
-        //     for (let j=0;j<dim;j++){
-        //         row.push(1000000*Math.random());
-        //         if(i>500 && i<600 && j>500 && j<600){
-        //             row[j] = 0
-        //         }
-        //     }
-        //     data.push(row);
-        // }
+        let data = [];
+        let dim = 1000
+        for (let i=0;i<dim;i++){
+            let row = [];
+            for (let j=0;j<dim;j++){
+                row.push(1000000*Math.random());
+                if(i>500 && i<600 && j>500 && j<600){
+                    row[j] = 0
+                }
+            }
+            data.push(row);
+        }
 
-        let data = {
-            xBins: 8192,
-            yBins: 8192,
-            x: [],
-            y: [],
-            z: []
-        }
-        for (let i = 0; i < 1000000; i++) {
-            data.x.push(Math.floor(Math.random() * 8192));
-            data.y.push(Math.floor(Math.random() * 8192));
-            data.z.push(Math.random());
-        }
+        // let data = {
+        //     xBins: 8192,
+        //     yBins: 8192,
+        //     x: [],
+        //     y: [],
+        //     z: []
+        // }
+        // for (let i = 0; i < 1000000; i++) {
+        //     data.x.push(Math.floor(Math.random() * 8192));
+        //     data.y.push(Math.floor(Math.random() * 8192));
+        //     data.z.push(Math.random());
+        // }
 
         hm.draw(data)
 
