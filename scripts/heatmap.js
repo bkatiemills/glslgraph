@@ -147,10 +147,12 @@ export class heatmap {
         this.annotationcanvas.addEventListener('mouseout', (e) => this.onMouseOut(e));
         this.annotationcanvas.addEventListener('dblclick', (e) => this.onDblClick(e));
         this.annotationcanvas.addEventListener('click', (e) => this.onClick(e));
+        this.annotationcanvas.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
         this.dragInProgress = false;
         this.mouseDownTimer = [];
         this.mouseUpTimer = [];
         this.clickTimer = [];
+        this.wheeltick = false; // timeout for wheel events
 
         // annotation members
         this.polyVertices_px = [];
@@ -377,6 +379,7 @@ export class heatmap {
     
         ctx.fillStyle = this.textColor;
         ctx.textAlign = 'center';
+        ctx.textBaseline = 'alphabetic';
     
         const tickLength = 4;
 
@@ -460,11 +463,7 @@ export class heatmap {
            yBin < this.currentYaxisMinValue || yBin >= this.currentYaxisMaxValue) {
             this.cursorreport.innerHTML = `Cursor: -`;
         } else{
-            if(this.sparseLookupTable){
-                val = this.scale === 'linear' ? this.sparseLookupTable[yBin][xBin] : Math.log(this.sparseLookupTable[yBin][xBin]);
-            } else {
-                val = this.scale === 'linear' ? this.data[yBin][xBin] : Math.log(this.data[yBin][xBin]);
-            }
+            val = this.lookupVal(xBin, yBin);
             if(val === undefined){
                 val = 0
             }
@@ -485,6 +484,17 @@ export class heatmap {
 
             this.cursorreport.innerHTML = `Cursor: (${xBin}, ${yBin}: ${val})`;
         }
+    }
+
+    lookupVal(xBin, yBin){
+        let val = null;
+        if(this.sparseLookupTable){
+            val = this.scale === 'linear' ? this.sparseLookupTable[yBin][xBin] : Math.log(this.sparseLookupTable[yBin][xBin]);
+        } else {
+            val = this.scale === 'linear' ? this.data[yBin][xBin] : Math.log(this.data[yBin][xBin]);
+        }
+
+        return val;
     }
 
     drawCursor(canvas, x, y) {
@@ -563,9 +573,9 @@ export class heatmap {
     onDragComplete(start, end) {
         // set everything for zooming in
         let left = Math.max(0,Math.min(start[0], end[0]));
-        let right = Math.min(this.xglobalEnd, Math.max(start[0], end[0]));
+        let right = Math.min(this.xglobalEnd+1, Math.max(start[0], end[0]));
         let bottom = Math.max(0,Math.min(start[1], end[1]));
-        let top = Math.min(this.yglobalEnd, Math.max(start[1], end[1]));
+        let top = Math.min(this.yglobalEnd+1, Math.max(start[1], end[1]));
         this.zoomX(left, right);
         this.zoomY(bottom, top);
         
@@ -582,7 +592,6 @@ export class heatmap {
         this.nXbins = end - start;
         this.currentXaxisMinValue = start;
         this.currentXaxisMaxValue = end;
-        //this.draw();
     }
 
     zoomY(start, end) {
@@ -595,7 +604,6 @@ export class heatmap {
         this.nYbins = end - start;
         this.currentYaxisMinValue = start;
         this.currentYaxisMaxValue = end;
-        //this.draw();
     }
 
     onClick(e){
@@ -614,6 +622,77 @@ export class heatmap {
                     this.clickTimer = [];
                 }, 250)
             )
+        }
+    }
+
+    onWheel(e){
+        e.preventDefault();
+        if(!this.wheeltick){
+
+            setTimeout(() => {
+                // find zoom center
+                const rect = this.polycanvas.getBoundingClientRect();
+                const x = Math.floor(e.clientX - rect.left);
+                const y = Math.floor(e.clientY - rect.top);
+                if(x < this.leftgutter || x > this.annotationcanvas.width-this.rightgutter || y < this.topgutter || y > this.annotationcanvas.height-this.bottomgutter) {
+                    this.wheeltick = false;
+                    return
+                }
+                const [xBin, yBin] = this.pixel2bin(x, y);
+                const val = this.lookupVal(xBin, yBin);
+                this.cursorreport.innerHTML = `Cursor: (${xBin}, ${yBin}: ${val})`;
+
+                let zoomfactor = 1.1;
+                let oldXrange = this.currentXaxisMaxValue - this.currentXaxisMinValue;
+                let oldYrange = this.currentYaxisMaxValue - this.currentYaxisMinValue;
+                let xpro = (xBin - this.currentXaxisMinValue) / oldXrange;
+                let ypro = (yBin - this.currentYaxisMinValue) / oldYrange;
+                let newXrange, newYrange;
+                if (e.deltaY < 0) {
+                    // zoom in
+                    newXrange = Math.max(oldXrange / zoomfactor, this.xglobalEnd/100);
+                    newYrange = Math.max(oldYrange / zoomfactor, this.yglobalEnd/100);
+                } else {
+                    // zoom out
+                    newXrange = Math.min(oldXrange * zoomfactor, this.xglobalEnd+1);
+                    newYrange = Math.min(oldYrange * zoomfactor, this.yglobalEnd+1);
+                }
+
+                // adjust limits, keep in bounds
+                let newXmin = xBin - xpro * newXrange;
+                let newXmax = newXmin + newXrange;
+                if(newXmin < 0){
+                    newXmax += -newXmin;
+                    newXmin = 0;
+                }
+                if(newXmax > this.xglobalEnd+1){
+                    newXmin -= (newXmax - this.xglobalEnd - 1);
+                    newXmax = this.xglobalEnd+1;
+                }
+                let newYmin = yBin - ypro * newYrange;
+                let newYmax = newYmin + newYrange;
+                if(newYmin < 0){
+                    newYmax += -newYmin;
+                    newYmin = 0;
+                }
+                if(newYmax > this.yglobalEnd+1){
+                    newYmin -= (newYmax - this.yglobalEnd - 1);
+                    newYmax = this.yglobalEnd+1;
+                }
+
+                newXmin = Math.floor(newXmin);
+                newXmax = Math.ceil(newXmax);
+                newYmin = Math.floor(newYmin);
+                newYmax = Math.ceil(newYmax);
+
+                this.zoomX(newXmin, newXmax);
+                this.zoomY(newYmin, newYmax);
+
+                this.draw()
+                this.wheeltick = false;
+            }, 20);
+
+            this.wheeltick = true;
         }
     }
 
