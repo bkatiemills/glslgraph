@@ -44,6 +44,7 @@ The `heatmap` constructor accepts an optional configuration object that supports
  - `scale`: (string, `linear` or `log`): sets the vertical scale of the plot to linear or log scale.
  - `textColor`: (string, default '#000000' (black)) hex string like '#123456' describing the color of the axis lines, ticks and labels.
  - `width`: (integer, px) sets the width of the plot area. Overrides all other plot width determining logic.
+ - `plotTitle`: (string) title for plot.
  - `xAxisTitle`: (string) title for the horizontal axis.
  - `yAxisTitle`: (string) title for the vertical axis.
 
@@ -56,6 +57,10 @@ Heatmap objects contain numerous member variables and methods; below we highligh
 - `.addPolyVertex(x,y)`: `x` and `y` are the bins to add a polygon vertex at.
 - `.draw(data)`: `data` is either a dense or sparse packed data object, described above, and can be omitted if `.setData(data)` has been called on this dataset previously. Triggers a redraw of the heatmap, following the parameters previously set.
 - `.setData(data)`: `data` is either a dense or sparse packed data object, described above. This method parses this object in preparation for plotting; it is not strictly necessary for the user to call this (see `.draw(data)`), but for large sparse data arrays that need to be traversed once on load, it can be advantageous to call this in the background as soon as possible in situations where the user must make additional choices before `.draw()` is called; that way the traversal is complete by the time `.draw()` is called and doesn't create perceived lag for the user.
+- `.setMeta(options)`: `options` is a JSON object of metadata options to reconfigure via this method. Current supported options:
+  - `plotTitle`
+  - `xAxisTitle`
+  - `yAxisTitle`
 - `.zoomX(min, max)` / `.zoomY(min, max)`: programatically zoom to the specified min and max bins for the X or Y axis. User will still have to call `.draw()` to actually render the zoomed view.
 - `.zoomout()`: reset the X and Y zooms to their largest extent.
 

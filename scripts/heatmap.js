@@ -82,6 +82,10 @@ export class heatmap {
         let colorbarAnnotationEst = this.markupcanvas.getContext('2d').measureText('0.00e+00').width;
         this.leftgutter = Math.max(this.plot_width*0.05, this.axisTitleFontSize + 4*this.tickFontSize);
         this.topgutter = this.plot_height * 0.04;
+        if (this.topgutter < this.axisTitleFontSize*2) {
+            // make sure there's room for a title
+            this.topgutter = this.axisTitleFontSize*2;
+        }
         this.rightgutter = colorbarAnnotationEst + this.colorbarWidth;
         this.bottomgutter = Math.max(this.plot_height*0.05, this.axisTitleFontSize + 2*this.tickFontSize);
 
@@ -170,6 +174,7 @@ export class heatmap {
         this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer);
         this.gl.vertexAttribPointer(a_vertex, 2, this.gl.FLOAT, false, 0, 0);
 
+        this.plotTitle = options.plotTitle || '';
         this.xAxisTitle = options.xAxisTitle || '';
         this.yAxisTitle = options.yAxisTitle || '';
 
@@ -231,6 +236,15 @@ export class heatmap {
             this.yglobalEnd = this.currentYaxisMaxValue;
             this.instances = this.nXbins * this.nYbins;
         } 
+    }
+
+    setMeta(options) {
+        // update some metadata
+        this.plotTitle = options.plotTitle || this.plotTitle;
+        this.xAxisTitle = options.xAxisTitle || this.xAxisTitle;
+        this.yAxisTitle = options.yAxisTitle || this.yAxisTitle;
+
+        this.drawAxes();
     }
 
     draw(zvalues){
@@ -365,6 +379,12 @@ export class heatmap {
         ctx.textAlign = 'center';
     
         const tickLength = 4;
+
+        // title
+        if(this.plotTitle){
+            ctx.font = `${this.axisTitleFontSize}px sans-serif`;
+            ctx.fillText(this.plotTitle, ox + (xEnd - ox) / 2, this.topgutter / 2 + this.axisTitleFontSize / 2);
+        }
         
         // X ticks
         ctx.beginPath();
