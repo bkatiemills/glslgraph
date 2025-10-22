@@ -132,10 +132,56 @@ export class heatmap {
         this.manageColorscale();
         controlTarget.appendChild(this.colorscaleControl);
 
-
         /// vertex control div
         this.vertexcontrol = document.createElement('div');
+        this.vertexcontrol.innerHTML = `<h3>Clickgate Vertexes</h3><div id='vertexcontrol'>None, click on the plot.</div>`;
         controlTarget.appendChild(this.vertexcontrol);
+
+        // polyline creation form
+        this.createPolylineForm = document.createElement('form');
+        this.polylineList = document.createElement('div');
+        this.createPolylineForm.style.marginTop = '10px';
+        controlTarget.appendChild(this.createPolylineForm);
+        controlTarget.appendChild(this.polylineList);
+        this.createPolylineForm.innerHTML = `
+            <h3>Add polylines</h3>
+            <label for="polylineName">Polyline Name:</label>
+            <input type="text" id="polylineName" name="polylineName" value="demo" required>
+            <br>
+            <label for="polylineColor">Color:</label>
+            <input type="color" id="polylineColor" name="polylineColor" value="#ff0000" required>
+            <br>
+            <label for="polylineWidth">Line Width:</label>
+            <input type="number" id="polylineWidth" name="polylineWidth" value="2" min="1" max="10" required>
+            <br>
+            <label for="polylineVertexes">Vertexes:</label>
+            <input type="text" id="polylineVertexes" name="polylineVertexes" value="[[10,10],[200,225],[40,500]]" required>
+            <br>
+            <button type="submit">Add Polyline</button>
+        `;
+        this.createPolylineForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = this.createPolylineForm.polylineName.value;
+            const color = this.createPolylineForm.polylineColor.value;
+            const linewidth = parseInt(this.createPolylineForm.polylineWidth.value);
+            const vertexes = JSON.parse(this.createPolylineForm.polylineVertexes.value)
+            this.addPolyLine(name, color, linewidth, vertexes);
+            // add to polyline list
+            const polylineEntry = document.createElement('div');
+            polylineEntry.textContent = name;
+            const deleteButton = document.createElement('button');
+            deleteButton.textContent = 'Delete';
+            deleteButton.addEventListener('click', () => {
+                this.deletePolyLine(name);
+                this.polylineList.removeChild(polylineEntry);
+            });
+            polylineEntry.appendChild(deleteButton);
+            this.polylineList.appendChild(polylineEntry);
+
+            
+
+            this.createPolylineForm.reset();
+        });
 
         // click-drag-release
         this.dragStart = null;
@@ -155,7 +201,6 @@ export class heatmap {
         this.wheeltick = false; // timeout for wheel events
 
         // annotation members
-        this.polyVertices_px = [];
         this.onVertexListUpdated = options.polycallback || null;
 
         // glsl guts
@@ -182,6 +227,24 @@ export class heatmap {
 
         this.data = null;
         this.instances = 0;
+
+        this.polylines = [
+            {
+                'name': 'clickgate',
+                'linewidth': 3,
+                'color': '#FFFFFF',
+                'vertexes': [] // first entry is always the onclick polygon
+            }
+        ];
+        // add clickgate to polylines
+        this.polylineList.innerHTML = `
+            <h3>Polylines</h3>
+            <div>clickgate <button id="deleteClickgate">Clear</button></div>
+        `;
+        document.getElementById('deleteClickgate').addEventListener('click', () => {
+            this.deletePolyLine('clickgate');
+        });
+        
     }
     
     manageColorscale(){
@@ -348,6 +411,7 @@ export class heatmap {
         gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, index);  
 
         this.drawAxes();
+        this.drawPolyLines();
     }
 
     glslcolor(hexcolor){
@@ -448,6 +512,56 @@ export class heatmap {
         }, this.colormapper);
     }
     
+    drawPolyLines() {
+        const ctx = this.polycanvas.getContext('2d');
+        ctx.clearRect(0, 0, this.polycanvas.width, this.polycanvas.height);
+
+        this.polylines.forEach(line => {
+            if (line.vertexes.length < 2) return;
+
+            ctx.beginPath();
+            const startPixel = this.bin2pixel(line.vertexes[0][0], line.vertexes[0][1]);
+            ctx.moveTo(startPixel[0], startPixel[1]);
+            for (let i = 1; i < line.vertexes.length; i++) {
+                const pixel = this.bin2pixel(line.vertexes[i][0], line.vertexes[i][1]);
+                ctx.lineTo(pixel[0], pixel[1]);
+            }
+            ctx.closePath();
+            ctx.strokeStyle = line.color;
+            ctx.lineWidth = line.linewidth;
+            ctx.stroke();
+        });
+
+        // mask outside plot area
+        ctx.beginPath();
+        ctx.clearRect(0, 0, this.polycanvas.width, this.topgutter); // top
+        ctx.clearRect(0, this.polycanvas.height - this.bottomgutter, this.polycanvas.width, this.bottomgutter); // bottom
+        ctx.clearRect(0, 0, this.leftgutter, this.polycanvas.height); // left
+        ctx.clearRect(this.polycanvas.width - this.rightgutter, 0, this.rightgutter, this.polycanvas.height); // right
+    }
+
+    addPolyLine(name, color, linewidth, vertexes){
+        this.polylines.push({
+            'name': name,
+            'linewidth': linewidth,
+            'color': color,
+            'vertexes': vertexes
+        });
+
+        this.drawPolyLines();
+    }
+
+    deletePolyLine(name){
+        if(name === 'clickgate'){
+            // reset clickgate
+            this.polylines[0].vertexes = [];
+            this.manageVertexControl();
+        } else {
+            this.polylines = this.polylines.filter(line => line.name !== name);
+        }
+        this.drawPolyLines();
+    }
+
     onMouseMove(e) {
         if(this.data === null) {
             return
@@ -550,7 +664,6 @@ export class heatmap {
                     this.onDragComplete(this.dragStart, this.dragEnd);
                 }
                 this.dragInProgress = false;
-                this.clearcanvas(this.polycanvas);
                 this.clearcanvas(this.annotationcanvas);
                 this.mouseUpTimer = [];
             }, 100)
@@ -584,9 +697,6 @@ export class heatmap {
 
     zoomX(start, end) {
         // zoom in on the x-axis
-        this.polyVertices_px = [];
-        this.vertexcontrol.innerHTML = '';
-
         this.dragStart = [start, this.currentYaxisMinValue];
         this.dragEnd = [end, this.currentYaxisMaxValue];
         this.nXbins = end - start;
@@ -596,9 +706,6 @@ export class heatmap {
 
     zoomY(start, end) {
         // zoom in on the y-axis
-        this.polyVertices_px = [];
-        this.vertexcontrol.innerHTML = '';
-
         this.dragStart = [this.currentXaxisMinValue, start];
         this.dragEnd = [this.currentXaxisMaxValue, end];
         this.nYbins = end - start;
@@ -631,7 +738,7 @@ export class heatmap {
 
             setTimeout(() => {
                 // find zoom center
-                const rect = this.polycanvas.getBoundingClientRect();
+                const rect = this.glslcanvas.getBoundingClientRect();
                 const x = Math.floor(e.clientX - rect.left);
                 const y = Math.floor(e.clientY - rect.top);
                 if(x < this.leftgutter || x > this.annotationcanvas.width-this.rightgutter || y < this.topgutter || y > this.annotationcanvas.height-this.bottomgutter) {
@@ -693,9 +800,9 @@ export class heatmap {
 
     addPolyVertex(x, y) {
         // add a vertex to the polygon at bin x, y
-        this.polyVertices_px.push(this.bin2pixel(x, y));
+        this.polylines[0].vertexes.push([x,y]);
         this.manageVertexControl();
-        this.renderPoly(this.polycanvas);
+        this.drawPolyLines();
     }
 
     onDblClick(e) {
@@ -711,12 +818,9 @@ export class heatmap {
     }
     
     zoomout(){
-        this.polyVertices_px = [];
-        this.vertexcontrol.innerHTML = '';
         this.dragStart = null;
         this.dragStart_px = null;
         this.dragEnd = null;
-        this.polyVertices_px = [];
         if(this.data.hasOwnProperty('xBins')){
             this.nXbins = this.data.xBins;
             this.nYbins = this.data.yBins;
@@ -786,48 +890,32 @@ export class heatmap {
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
-
-    renderPoly(canvas) {
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        if (this.polyVertices_px.length < 2) return;
-
-        ctx.beginPath();
-        ctx.moveTo(this.polyVertices_px[0][0], this.polyVertices_px[0][1]);
-        for (let i = 1; i < this.polyVertices_px.length; i++) {
-            ctx.lineTo(this.polyVertices_px[i][0], this.polyVertices_px[i][1]);
-        }
-        ctx.closePath();
-        ctx.strokeStyle = this.annotationColor;
-        ctx.lineWidth = 3;
-        ctx.stroke();
-    }
     
     manageVertexControl() {
-        this.vertexcontrol.innerHTML = '';
+        this.vertexcontrol.innerHTML = `<h3>Clickgate Vertexes</h3><div id='vertexcontrol'>None, click on the plot.</div>`;
     
         const ul = document.createElement('ul');
     
-        this.polyVertices_px.forEach((vertex, index) => {
+        this.polylines[0].vertexes.forEach((vertex, index) => {
             const li = document.createElement('li');
             li.style.marginBottom = '8px';
     
             const inputX = document.createElement('input');
             inputX.type = 'number';
-            inputX.value = this.pixel2binX(vertex[0]);
+            inputX.value = vertex[0];
             inputX.style.width = '70px';
             inputX.addEventListener('input', () => {
-                this.polyVertices_px[index][0] = this.bin2pixelX(parseFloat(inputX.value));
-                this.renderPoly(this.polycanvas);
+                this.polylines[0].vertexes[index][0] = parseFloat(inputX.value);
+                this.drawPolyLines();
             });
             
             const inputY = document.createElement('input');
             inputY.type = 'number';
-            inputY.value = this.pixel2binY(vertex[1]);
+            inputY.value = vertex[1];
             inputY.style.width = '70px';
             inputY.addEventListener('input', () => {
-                this.polyVertices_px[index][1] = this.bin2pixelY(parseFloat(inputY.value));
-                this.renderPoly(this.polycanvas);
+                this.polylines[0].vertexes[index][1] = parseFloat(inputY.value);
+                this.drawPolyLines();
             });
     
             // Delete button
@@ -835,9 +923,9 @@ export class heatmap {
             deleteBtn.textContent = '🗑️';
             deleteBtn.title = 'Delete vertex';
             deleteBtn.addEventListener('click', () => {
-                this.polyVertices_px.splice(index, 1);
+                this.polylines[0].vertexes.splice(index, 1);
                 this.manageVertexControl();
-                this.renderPoly(this.polycanvas);
+                this.drawPolyLines();
             });
     
             // Move up button
@@ -846,22 +934,22 @@ export class heatmap {
             upBtn.title = 'Move up';
             upBtn.disabled = index === 0;
             upBtn.addEventListener('click', () => {
-                [this.polyVertices_px[index - 1], this.polyVertices_px[index]] =
-                    [this.polyVertices_px[index], this.polyVertices_px[index - 1]];
+                [this.polylines[0].vertexes[index - 1], this.polylines[0].vertexes[index]] =
+                    [this.polylines[0].vertexes[index], this.polylines[0].vertexes[index - 1]];
                 this.manageVertexControl();
-                this.renderPoly(this.polycanvas);
+                this.drawPolyLines();
             });
     
             // Move down button
             const downBtn = document.createElement('button');
             downBtn.textContent = '⬇️';
             downBtn.title = 'Move down';
-            downBtn.disabled = index === this.polyVertices_px.length - 1;
+            downBtn.disabled = index === this.polylines[0].vertexes.length - 1;
             downBtn.addEventListener('click', () => {
-                [this.polyVertices_px[index], this.polyVertices_px[index + 1]] =
-                    [this.polyVertices_px[index + 1], this.polyVertices_px[index]];
+                [this.polylines[0].vertexes[index], this.polylines[0].vertexes[index + 1]] =
+                    [this.polylines[0].vertexes[index + 1], this.polylines[0].vertexes[index]];
                 this.manageVertexControl();
-                this.renderPoly(this.polycanvas);
+                this.drawPolyLines();
             });
     
             // Assemble the list item
@@ -875,15 +963,14 @@ export class heatmap {
     
             ul.appendChild(li);
         });
-    
+
+        if(this.polylines[0].vertexes.length > 0){
+            document.getElementById('vertexcontrol').innerHTML = '';
+        }
         this.vertexcontrol.appendChild(ul);
 
         if (typeof this.onVertexListUpdated === 'function') {
-            const displayCoords = this.polyVertices_px.map(([px, py]) => [
-                this.pixel2binX(px),
-                this.pixel2binY(py)
-            ]);
-            this.onVertexListUpdated(displayCoords);
+            this.onVertexListUpdated(this.polylines[0].vertexes);
         }
     }
 
