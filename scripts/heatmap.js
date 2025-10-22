@@ -659,8 +659,8 @@ export class heatmap {
                 }
 
                 // adjust limits, keep in bounds
-                let newXmin = xBin - xpro * newXrange;
-                let newXmax = newXmin + newXrange;
+                let newXmin = Math.floor(xBin - xpro * newXrange);
+                let newXmax = Math.ceil(newXmin + newXrange);
                 if(newXmin < 0){
                     newXmax += -newXmin;
                     newXmin = 0;
@@ -669,8 +669,8 @@ export class heatmap {
                     newXmin -= (newXmax - this.xglobalEnd - 1);
                     newXmax = this.xglobalEnd+1;
                 }
-                let newYmin = yBin - ypro * newYrange;
-                let newYmax = newYmin + newYrange;
+                let newYmin = Math.floor(yBin - ypro * newYrange);
+                let newYmax = Math.ceil(newYmin + newYrange);
                 if(newYmin < 0){
                     newYmax += -newYmin;
                     newYmin = 0;
@@ -679,11 +679,6 @@ export class heatmap {
                     newYmin -= (newYmax - this.yglobalEnd - 1);
                     newYmax = this.yglobalEnd+1;
                 }
-
-                newXmin = Math.floor(newXmin);
-                newXmax = Math.ceil(newXmax);
-                newYmin = Math.floor(newYmin);
-                newYmax = Math.ceil(newYmax);
 
                 this.zoomX(newXmin, newXmax);
                 this.zoomY(newYmin, newYmax);
